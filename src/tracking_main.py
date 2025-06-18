@@ -14,31 +14,30 @@ Entrez.email = "rzhan186@gmail.com"
 ######################################################################
 # separate function for validating date inputs and checking the order.
 def validate_date_input(date_str):
-    """Validates user input for YYYY-MM format."""
-    pattern = r"^\d{4}-(0[1-9]|1[0-2])$"  # Ensures the format is YYYY-MM
+    """Validates user input for YYYY-MM or YYYY-MM-DD format."""
+    pattern = r"^\d{4}-(0[1-9]|1[0-2])(-([0-2][0-9]|3[01]))?$"  # Matches YYYY-MM or YYYY-MM-DD
     return bool(re.match(pattern, date_str))
 
-def validate_dates(start_month, end_month, today):
+def validate_dates(start_date, end_date, today):
+
+    today = datetime.today()
+
     """Validates the start and end date formats and order."""
-    if not validate_date_input(start_month) or not validate_date_input(end_month):
-        raise ValueError("❌ Invalid format! Dates must be in YYYY-MM format (e.g., 2024-01).")
+    if not validate_date_input(start_date) or not validate_date_input(end_date):
+        raise ValueError("❌ Invalid format! Dates must be in YYYY-MM or YYYY-MM-DD format (e.g., 2024-01 or 2024-01-15).")
 
-    if start_month > end_month:
-        raise ValueError("❌ Start month cannot be later than end month.")
+    if start_date > end_date:
+        raise ValueError("❌ Start date cannot be later than end date.")
 
-    if start_month > today.strftime("%Y-%m"):
-        raise ValueError("❌ Start month cannot be later than the current month")
-    
-    if end_month > today.strftime("%Y-%m"):
-        raise ValueError("❌ End month cannot be later than the current month")
+    if start_date > today.strftime('%Y-%m-%d'):
+        raise ValueError("❌ Start date cannot be later than the current date")
 
-def get_last_day_of_month(year, month):
+    if end_date > today.strftime("%Y-%m-%d"):
+        raise ValueError("❌ End date cannot be later than the current date")
+
+def get_last_day_of_month(year, month,):
     """Returns the last valid day of a given month."""
     return monthrange(int(year), int(month))[1]  # Correct last day
-
-
-### implement another function to allow user specify specific date
-
 
 ######################################################################
 # Format journal names to allow full or abbreviations
@@ -196,7 +195,7 @@ def parse_pubmed_article(paper_info):
     }
 
 ######################################################################
-def fetch_pubmed_articles_by_date(journal, start_month=None, end_month=None):
+def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None):
 
     # Load journal abbreviations
     journal_dict = load_pubmed_journal_abbreviations()
@@ -205,21 +204,33 @@ def fetch_pubmed_articles_by_date(journal, start_month=None, end_month=None):
     today = datetime.today()
     current_month = today.strftime("%Y-%m")
 
-    if start_month is None:
-        start_month = current_month
-    if end_month is None:
-        end_month = current_month
+    if start_date is None:
+        start_date = current_month
+    if end_date is None:
+        end_date = current_month
 
         print(f"No date provided, fetching articles from {journal} of the current month {today.strftime('%Y-%m')}.")
 
-    # Validate the dates
-    validate_dates(start_month, end_month, today)
+    # Validate the user provided dates
+    validate_dates(start_date, end_date, today)
 
-    # Construct dates for the API request
-    start_date = f"{start_month}/01"
-    end_date = (today.strftime("%Y/%m/%d")
-                if end_month == current_month
-                else f"{end_month}/{get_last_day_of_month(end_month[:4], end_month[5:])}")
+    # Construct dates for the API request only if start_date is in YYYY-MM format
+    if len(start_date) == 7:  # YYYY-MM
+        start_date = f"{start_date}/01"  # Construct start date as YYYY-MM/01
+    elif len(start_date) == 10:  # YYYY-MM-DD
+        start_date = start_date  # Use as is
+
+    if len(end_date) == 7:
+        end_date = f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}"
+    elif len(end_date) == 10:  # YYYY-MM-DD
+        end_date = end_date  # Use as is
+
+    # start_date = f"{start_date}/01"
+    # end_date = (today.strftime("%Y/%m/%d")
+    #             if end_date == current_date
+    #             else f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}")
+
+    print(f"Date range used for query is from {start_date} to {end_date}")
 
     # Build the PubMed query
     query = build_pubmed_query(formatted_journal, start_date, end_date)
@@ -237,7 +248,10 @@ def fetch_pubmed_articles_by_date(journal, start_month=None, end_month=None):
     print(f"✅ {count} papers found.")
 
     # Fetch details for each article
-    for pmid in pmid_list:
+    total_papers = len(pmid_list)
+
+    for index, pmid in enumerate(pmid_list):
+        print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
         handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
         paper_info = Entrez.read(handle)
         handle.close()
@@ -265,14 +279,31 @@ def fetch_pubmed_articles_by_date(journal, start_month=None, end_month=None):
             "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
         })
 
+        # Print progress after fetching each article
+        print(f"✅ Fetched details for article {index + 1}: {title}")
+
+    print("😊 All articles have been fetched successfully.")
     return papers
 
-articles = fetch_pubmed_articles_by_date("Nature")
+######################################################################
+# function to export the article list to csv file
 
-df = pd.DataFrame(articles)
-df.to_csv(f"Nature_by_date.csv", index=False)
+def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
+
+    df = pd.DataFrame(articles)
+    df.to_csv(f"JournalTracker_{journal}_{start_date}_to_{end_date}.csv", index=False)
+
+    print(f"Fetched {len(df)} articles and saved to JournalTracker_{journal}_{start_date}_to_{end_date}.csv")
 
 
+
+# testing
+# articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12")
+
+
+# update:
+# host the pubmed urc on github
+# host the abbreviation to full name list on github
 
 
 
