@@ -54,7 +54,6 @@ def get_pubmed_journal_abbreviations():
     
     return journal_dict
 
-
 get_pubmed_journal_abbreviations()
 
 JOURNAL_LIST_FILE = "/Users/ruizhang/Desktop/pubmed_journal_abbreviations.json"  # Local file path
