@@ -88,8 +88,6 @@ def get_pubmed_journal_abbreviations():
     
     return journal_dict
 
-get_pubmed_journal_abbreviations()
-
 JOURNAL_LIST_FILE = "/Users/ruizhang/Desktop/pubmed_journal_abbreviations.json"  # Local file path
 
 def load_pubmed_journal_abbreviations():
@@ -295,15 +293,15 @@ def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
 
     print(f"Fetched {len(df)} articles and saved to JournalTracker_{journal}_{start_date}_to_{end_date}.csv")
 
-
-
 # testing
 # articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12")
 
 
-# update:
-# host the pubmed urc on github
-# host the abbreviation to full name list on github
+# More update update:
+    # prompty the user to enter an email address ✅
+    # host the pubmed urc on github
+    # host the abbreviation to full name list on github
+    # prompt the user to indicate an export directory, export to current directory by defacult
+    # output publication date not aligned with the journal publication date. 
 
-
-
+# implement a search by keyword function
