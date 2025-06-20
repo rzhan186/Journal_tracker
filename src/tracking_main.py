@@ -7,6 +7,8 @@ import pandas as pd
 import re
 import requests
 import json
+import difflib
+
 
 # Set Entrez email
 Entrez.email = "rzhan186@gmail.com"
@@ -18,14 +20,22 @@ def validate_date_input(date_str):
     pattern = r"^\d{4}-(0[1-9]|1[0-2])(-([0-2][0-9]|3[01]))?$"  # Matches YYYY-MM or YYYY-MM-DD
     return bool(re.match(pattern, date_str))
 
-def validate_dates(start_date, end_date, today):
+
+def validate_dates(start_date, end_date):
 
     today = datetime.today()
 
     """Validates the start and end date formats and order."""
-    if not validate_date_input(start_date) or not validate_date_input(end_date):
+
+    if not start_date:
+        return
+    
+    if not validate_date_input(start_date):
         raise ValueError("❌ Invalid format! Dates must be in YYYY-MM or YYYY-MM-DD format (e.g., 2024-01 or 2024-01-15).")
 
+    if not validate_date_input(end_date):
+        raise ValueError("❌ Invalid format! Dates must be in YYYY-MM or YYYY-MM-DD format (e.g., 2024-01 or 2024-01-15).")
+    
     if start_date > end_date:
         raise ValueError("❌ Start date cannot be later than end date.")
 
@@ -35,6 +45,10 @@ def validate_dates(start_date, end_date, today):
     if end_date > today.strftime("%Y-%m-%d"):
         raise ValueError("❌ End date cannot be later than the current date")
 
+# i want to modify the code, when a start date is not provided, dont do anything and skip the program
+# if a start date is provide then validate start and end date and all else.
+
+
 def get_last_day_of_month(year, month,):
     """Returns the last valid day of a given month."""
     return monthrange(int(year), int(month))[1]  # Correct last day
@@ -43,21 +57,39 @@ def get_last_day_of_month(year, month,):
 # Format journal names to allow full or abbreviations
 
 JOURNAL_LIST_URL = "https://ftp.ncbi.nih.gov/pubmed/J_Medline.txt" 
-    # modify this to host this urc on github
-JOURNAL_LIST_FILE = "/Users/ruizhang/Desktop/pubmed_journal_abbreviations.json"  
-    # modify this to host this on github
+FALLBACK_JOURNAL_LIST_URL="https://raw.githubusercontent.com/rzhan186/Journal_tracker/refs/heads/main/data/pubmed_journal_abbreviations.json?token=GHSAT0AAAAAADF4U3Q7CM3EE27ZVXD7VDQM2CTP7OQ"
+
+JOURNAL_LIST_FILE = "pubmed_journal_abbreviations.json"  
 
 # function to get the Pubmed journal title and its abbreviations
 def get_pubmed_journal_abbreviations():
+
     """
     Fetches and parses the latest journal abbreviations from PubMed's official source.
     Saves the data locally in a JSON file for future use.
     Returns a dictionary {abbreviation: full_name}.
     """
+    
     print("🔍 Fetching the latest journal abbreviations from PubMed...")
 
-    response = requests.get(JOURNAL_LIST_URL)
-    response.raise_for_status()  # Ensure request was successful
+    try: 
+        response = requests.get(JOURNAL_LIST_URL)
+        response.raise_for_status()  # Ensure request was successful
+        print("✅ Successfully fetched from primary URL.")
+
+    except (requests.HTTPError, requests.ConnectionError) as e:
+        print(f"⚠️ Primary URL failed: {e}. Trying fallback URL...")
+        try:
+            response = requests.get(FALLBACK_JOURNAL_LIST_URL)
+            response.raise_for_status()  # Ensure request was successful
+            print("✅ Successfully fetched from fallback URL.")
+    
+        except (requests.HTTPError, requests.ConnectionError) as e:
+            print(f"⚠️ Fallback URL also failed: {e}. Unable to fetch journal abbreviations.")
+            print(f"⚠️ You need to download the pubmed_journal_abbreviations.json file manually from https://github.com/rzhan186/Journal_tracker/blob/main/data/pubmed_journal_abbreviations.json and save as a local json file")
+
+            return {}  # Return an empty dictionary if both requests fail
+    
     text_data = response.text.split("\n")  # Split response into lines
 
     journal_dict = {}
@@ -84,16 +116,14 @@ def get_pubmed_journal_abbreviations():
     with open(JOURNAL_LIST_FILE, "w", encoding="utf-8") as file:
         json.dump(journal_dict, file, ensure_ascii=False, indent=4)
     
-    print(f"✅ Journal abbreviations saved to {JOURNAL_LIST_FILE}")
+    print(f"✅ Journal abbreviations saved to the directory {JOURNAL_LIST_URL}")
     
     return journal_dict
-
-JOURNAL_LIST_FILE = "/Users/ruizhang/Desktop/pubmed_journal_abbreviations.json"  # Local file path
 
 def load_pubmed_journal_abbreviations():
     """
     Loads the journal abbreviations dictionary from a local JSON file.
-    If the file does not exist, fetches and saves it first.
+    If the file does not exist, fetches and saves it first from Github .
     """
     try:
         with open(JOURNAL_LIST_FILE, "r", encoding="utf-8") as file:
@@ -111,7 +141,7 @@ def format_journal_abbreviation(journal, journal_dict):
     - Uses sets and dictionaries for O(1) lookups to handle large datasets efficiently.
     - If a full name is given, retrieves and formats its abbreviation.
     - If an abbreviation is given, ensures proper formatting.
-    - If neither is found, halts immediately with an exception.
+    - Provides suggestions for typos using fuzzy matching.
     """
     
     # Preprocess the journal_dict into two sets for quick lookup
@@ -131,11 +161,14 @@ def format_journal_abbreviation(journal, journal_dict):
         print(f"✅ Found full name. Using abbreviation: {formatted_abbr}")
         return formatted_abbr
 
-    # Raise an exception if the journal is not found
-    raise ValueError(f"❌ Error: '{journal}' not found in PubMed journal list.")
+    # No exact match — try suggesting similar names
+    possible_matches = difflib.get_close_matches(journal, list(full_names_set.union(abbreviations_set)), n=5, cutoff=0.6)
+    
+    suggestion_msg = ""
+    if possible_matches:
+        suggestion_msg = "\n🛈 Did you mean: " + ", ".join(f"'{s}'" for s in possible_matches)
 
-
-
+    raise ValueError(f"❌ Error: '{journal}' not found in PubMed journal list.{suggestion_msg}")
 
 
 ######################################################################
@@ -150,23 +183,18 @@ def fetch_article_ids_from_pubmed(query):
 
 ######################################################################
 # Create a function dedicated to building the query.
-def build_pubmed_query(journal, start_date, end_date):
+def build_pubmed_query(journal, start_date, end_date, keywords=None):
     """Construct the PubMed query string."""
-    return (
+    query =  (
         f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication]) '
         f'AND ("journal article"[Publication Type] OR "review"[Publication Type]) '
         f'NOT ("news"[Publication Type] OR "comment"[Publication Type] OR "editorial"[Publication Type])'
     )
 
-######################################################################
-# Construct PubMed Query Function
-def build_pubmed_query(journal, start_date, end_date):
-    """Construct the PubMed query string."""
-    return (
-        f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication]) '
-        f'AND ("journal article"[Publication Type] OR "review"[Publication Type]) '
-        f'NOT ("news"[Publication Type] OR "comment"[Publication Type] OR "editorial"[Publication Type])'
-    )
+    if keywords:
+        query += f' AND ({keywords})' # Apply the keywords filter
+
+    return query
 
 ######################################################################
 # parse the fetched articles into a more useful format.
@@ -193,7 +221,7 @@ def parse_pubmed_article(paper_info):
     }
 
 ######################################################################
-def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None):
+def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywords=None):
 
     # Load journal abbreviations
     journal_dict = load_pubmed_journal_abbreviations()
@@ -202,15 +230,13 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None):
     today = datetime.today()
     current_month = today.strftime("%Y-%m")
 
-    if start_date is None:
+    if not start_date:
         start_date = current_month
-    if end_date is None:
         end_date = current_month
-
+        # Fixing bug if no start date or end date is provided, the program won't work
         print(f"No date provided, fetching articles from {journal} of the current month {today.strftime('%Y-%m')}.")
-
-    # Validate the user provided dates
-    validate_dates(start_date, end_date, today)
+    else:
+        validate_dates(start_date, end_date or current_month)
 
     # Construct dates for the API request only if start_date is in YYYY-MM format
     if len(start_date) == 7:  # YYYY-MM
@@ -231,7 +257,7 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None):
     print(f"Date range used for query is from {start_date} to {end_date}")
 
     # Build the PubMed query
-    query = build_pubmed_query(formatted_journal, start_date, end_date)
+    query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
     print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date}...")
 
     # Fetch article IDs
@@ -298,9 +324,7 @@ def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
 
 
 # More update update:
-    # prompty the user to enter an email address ✅
-    # host the pubmed urc on github
-    # host the abbreviation to full name list on github
+    # prompty the user to enter an email address ➡️ implement this at the end
     # prompt the user to indicate an export directory, export to current directory by defacult
     # output publication date not aligned with the journal publication date. 
 
