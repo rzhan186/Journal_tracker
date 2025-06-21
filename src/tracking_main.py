@@ -61,9 +61,7 @@ FALLBACK_JOURNAL_LIST_URL="https://raw.githubusercontent.com/rzhan186/Journal_tr
 
 JOURNAL_LIST_FILE = "pubmed_journal_abbreviations.json"  
 
-# function to get the Pubmed journal title and its abbreviations
 def get_pubmed_journal_abbreviations():
-
     """
     Fetches and parses the latest journal abbreviations from PubMed's official source.
     Saves the data locally in a JSON file for future use.
@@ -87,7 +85,6 @@ def get_pubmed_journal_abbreviations():
         except (requests.HTTPError, requests.ConnectionError) as e:
             print(f"⚠️ Fallback URL also failed: {e}. Unable to fetch journal abbreviations.")
             print(f"⚠️ You need to download the pubmed_journal_abbreviations.json file manually from https://github.com/rzhan186/Journal_tracker/blob/main/data/pubmed_journal_abbreviations.json and save as a local json file")
-
             return {}  # Return an empty dictionary if both requests fail
     
     text_data = response.text.split("\n")  # Split response into lines
@@ -116,7 +113,7 @@ def get_pubmed_journal_abbreviations():
     with open(JOURNAL_LIST_FILE, "w", encoding="utf-8") as file:
         json.dump(journal_dict, file, ensure_ascii=False, indent=4)
     
-    print(f"✅ Journal abbreviations saved to the directory {JOURNAL_LIST_URL}")
+    print(f"✅ Journal abbreviations saved to the directory {JOURNAL_LIST_FILE}")
     
     return journal_dict
 
@@ -150,14 +147,14 @@ def format_journal_abbreviation(journal, journal_dict):
     
     # Check if input is a known abbreviation
     if journal in abbreviations_set:
-        formatted_abbr = journal + "." if " " in journal and not journal.endswith(".") else journal
+        formatted_abbr = journal  # Use the abbreviation directly, no need to add a dot.
         print(f"✅ Found abbreviation. Using formatted abbreviation: {formatted_abbr}")
         return formatted_abbr
 
     # Check if input is a full journal name
     elif journal in full_names_set:
         abbr = [abbr for abbr, full_name in journal_dict.items() if full_name == journal][0]
-        formatted_abbr = abbr + "." if " " in abbr and not abbr.endswith(".") else abbr
+        formatted_abbr = abbr  # Get the abbreviation directly without adding a dot
         print(f"✅ Found full name. Using abbreviation: {formatted_abbr}")
         return formatted_abbr
 
@@ -320,7 +317,7 @@ def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
     print(f"Fetched {len(df)} articles and saved to JournalTracker_{journal}_{start_date}_to_{end_date}.csv")
 
 # testing
-# articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12")
+# articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12","mercury or air")
 
 
 # More update update:
