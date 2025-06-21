@@ -1,11 +1,14 @@
 # import functions from other modules
 from datetime import datetime
 
-from tracking_main import fetch_pubmed_articles_by_date
-from tracking_main import export_fetched_articles_as_csv
-from tracking_main import validate_date_input
-from tracking_main import load_pubmed_journal_abbreviations
-from tracking_main import format_journal_abbreviation
+from tracking_main import (
+    fetch_pubmed_articles_by_date,
+    export_fetched_articles_as_csv,
+    validate_date_input,
+    load_pubmed_journal_abbreviations,
+    format_journal_abbreviation,
+    format_boolean_keywords_for_pubmed,
+)
 
 def main():
     print("Welcome to the Research Tracker!")
@@ -34,47 +37,63 @@ def main():
             while True:
                 start_date = input("Enter the start date (YYYY-MM or YYYY-MM-DD):\n(Press enter to search for the current month): ").strip()
 
-                if not start_date:  # Use current month if skipped
-                    # today = datetime.today()
-                    # start_date = today.strftime("%Y-%m")  # Set start date to current month
-                    print(f"No start date provided. Using current month: {start_date}.")
-                    break  # Exit the loop since we have a valid date
+                if not start_date:
+                    print(f"No start date provided. Using current month.")
+                    break
                 
-                # Validate the start date format
                 if validate_date_input(start_date):
-                    break  # Exit the loop if valid
+                    break
                 else:
                     print("❌ Invalid format! Dates must be in YYYY-MM or YYYY-MM-DD format (e.g., 2024-01 or 2024-01-15). Please try again.")
 
             while True:
-                # Prompt user for end date
-                end_date = input("Enter the end 🏁 date (YYYY-MM or YYYY-MM-DD):\n(Press enter to search for the current month: ").strip()
+                end_date = input("Enter the end 🏁 date (YYYY-MM or YYYY-MM-DD):\n(Press enter to search for the current month): ").strip()
 
-                if not end_date:  # Set end date to start date if not provided
+                if not end_date:
                     end_date = start_date
                     print(f"No end date provided. Using start date as end date: {end_date}.")
                     break
 
-                # Validate end date format
                 if validate_date_input(end_date):
                     break
                 else:
                     print("❌ Invalid format for end date. Please enter again.")
 
-            # Fetch articles with provided inputs and catch potential errors
-            try:
-                articles = fetch_pubmed_articles_by_date(formatted_journal, start_date, end_date)
+            # 🧠 Loop to allow retrying keywords if no articles are found
+            while True:
+                raw_keywords = input(
+                    "\nEnter keyword logic for Title/Abstract search\n"
+                    "(e.g., (climat* OR \"global warming\") AND (mercury OR pollution)):\n"
+                    "(Press Enter to skip keyword filtering): "
+                ).strip()
 
-                # Informing the user about article fetching results
-                if articles:
-                    print(f"About to save {len(articles)} articles as CSV format.")
-                    # Export articles to CSV
-                    export_fetched_articles_as_csv(articles, journal, start_date, end_date)
-                else:
-                    print("❌ No articles found for the given criteria.")
+                formatted_keywords = None
+                if raw_keywords:
+                    try:
+                        formatted_keywords = format_boolean_keywords_for_pubmed(raw_keywords)
+                        print(f"\n🔍 Using keyword filter:\n{formatted_keywords}\n")
+                    except Exception as e:
+                        print(f"⚠️ Failed to format keyword logic: {e}")
+                        continue  # Retry keyword input
 
-            except Exception as e:
-                print(f"An error occurred while fetching articles: {e}")
+                # Try fetching articles
+                try:
+                    articles = fetch_pubmed_articles_by_date(
+                        formatted_journal, start_date, end_date, formatted_keywords
+                    )
+
+                    if articles:
+                        print(f"✅ Found {len(articles)} articles. Saving to CSV...")
+                        export_fetched_articles_as_csv(articles, journal, start_date, end_date)
+                        break  # ✅ Exit keyword loop on success
+                    else:
+                        print("❌ No articles found. You can try refining your keywords.")
+                        retry = input("Do you want to enter new keywords? (y/n): ").strip().lower()
+                        if retry != 'y':
+                            break  # Exit loop even if no articles
+                except Exception as e:
+                    print(f"❌ An error occurred while fetching articles: {e}")
+                    break  # Don't retry on serious errors
 
         elif choice == '2':
             print("Exiting...")
@@ -82,7 +101,5 @@ def main():
         else:
             print("Invalid choice, please try again.")
 
-# Running the function with user input for specific dates
 if __name__ == "__main__":
     main()
-

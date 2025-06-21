@@ -178,20 +178,56 @@ def fetch_article_ids_from_pubmed(query):
 
     return record["IdList"], len(record["IdList"])
 
+
+######################################################################
+# create a function to allow web of science style boolean search
+def format_boolean_keywords_for_pubmed(raw_query):
+    """
+    Formats a Boolean keyword query for PubMed Title/Abstract search.
+    Preserves wildcards (*, ?), handles phrases, and attaches [Title/Abstract].
+    """
+    # Tokenize input: phrases in quotes, operators, parentheses, or single words/wildcards
+    tokens = re.findall(r'"[^"]+"|\(|\)|\bAND\b|\bOR\b|\bNOT\b|\*|\w[\w*?\-]*', raw_query, flags=re.IGNORECASE)
+    formatted_tokens = []
+
+    for token in tokens:
+        upper_token = token.upper()
+
+        if upper_token in {"AND", "OR", "NOT", "(", ")"}:
+            formatted_tokens.append(upper_token)
+        elif token.startswith('"') and token.endswith('"'):
+            # Phrase — preserve as is and tag
+            phrase = token.strip('"')
+            formatted_tokens.append(f'"{phrase}"[Title/Abstract]')
+        else:
+            # Single word or wildcarded term
+            formatted_tokens.append(f'{token}[Title/Abstract]')
+
+    return " ".join(formatted_tokens)
+
+# example input
+# (climat* OR "global warming") AND (mercury OR pollution)
+
+# example output
+# climat*[Title/Abstract] OR "global warming"[Title/Abstract] AND mercury[Title/Abstract] OR pollution[Title/Abstract]
+
 ######################################################################
 # Create a function dedicated to building the query.
+# handles formatted Boolean queries
 def build_pubmed_query(journal, start_date, end_date, keywords=None):
-    """Construct the PubMed query string."""
-    query =  (
+    """Construct the PubMed query string, supporting Boolean keyword search."""
+    base_query = (
         f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication]) '
         f'AND ("journal article"[Publication Type] OR "review"[Publication Type]) '
         f'NOT ("news"[Publication Type] OR "comment"[Publication Type] OR "editorial"[Publication Type])'
     )
 
     if keywords:
-        query += f' AND ({keywords})' # Apply the keywords filter
+        keyword_clause = f' AND ({keywords})'
+        return base_query + keyword_clause
+    else:
+        return base_query
 
-    return query
 
 ######################################################################
 # parse the fetched articles into a more useful format.
@@ -216,6 +252,10 @@ def parse_pubmed_article(paper_info):
         "Abstract": abstract,
         "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
     }
+
+
+
+
 
 ######################################################################
 def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywords=None):
@@ -255,7 +295,11 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
 
     # Build the PubMed query
     query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
-    print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date}...")
+
+    # ✅ Print the final query for verification
+    print(f"\n🔍 Here is the final PubMed Query:\n{query}\n in case you are curious")
+
+    print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date} using keywords {keywords}")
 
     # Fetch article IDs
     pmid_list, count = fetch_article_ids_from_pubmed(query)
@@ -317,7 +361,7 @@ def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
     print(f"Fetched {len(df)} articles and saved to JournalTracker_{journal}_{start_date}_to_{end_date}.csv")
 
 # testing
-# articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12","mercury or air")
+# articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12",'(climat* OR "global warming") AND (mercury OR pollution)')
 
 
 # More update update:
