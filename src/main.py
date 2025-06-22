@@ -10,12 +10,14 @@ from tracking_main import (
     format_boolean_keywords_for_pubmed,
 )
 
+from store_subscription import store_user_subscription  # New: for Supabase integration
+
 def setup_automatic_updates(email, journals, keywords, start_date, end_date):
     while True:
         update_frequency = input("\n⏳ Set your update frequency (daily/weekly/monthly/custom): ").strip().lower()
-        if update_frequency in {'daily', 'weekly', 'monthly', 'custom'}:
+        
+        if update_frequency in {'daily', 'weekly', 'monthly'}:
             print(f"✅ Automatic {update_frequency} updates will be scheduled for {email}.")
-            # Save/update to backend
             store_user_subscription(
                 email=email,
                 journals=journals,
@@ -25,6 +27,23 @@ def setup_automatic_updates(email, journals, keywords, start_date, end_date):
                 frequency=update_frequency
             )
             return
+        
+        elif update_frequency == 'custom':
+            custom_interval = input("🔧 Enter your custom interval in days (e.g., 10): ").strip()
+            if custom_interval.isdigit() and int(custom_interval) > 0:
+                custom_freq = f"every {custom_interval} days"
+                print(f"✅ Custom updates will be scheduled {custom_freq} for {email}.")
+                store_user_subscription(
+                    email=email,
+                    journals=journals,
+                    keywords=keywords,
+                    start_date=start_date,
+                    end_date=end_date,
+                    frequency=custom_freq
+                )
+                return
+            else:
+                print("❌ Invalid number. Please enter a positive integer.")
         else:
             print("❌ Invalid choice. Please enter: daily, weekly, monthly, or custom.")
 
