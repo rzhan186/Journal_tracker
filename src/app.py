@@ -9,6 +9,7 @@ from tracking_main import (
 import pandas as pd
 import os
 from store_subscription import store_user_subscription  # New: for Supabase integration
+from datetime import datetime, timedelta
 
 # Optional: Load .env locally
 from dotenv import load_dotenv
@@ -28,16 +29,37 @@ Enter your search criteria below.
 """)
 
 journal_dict = load_pubmed_journal_abbreviations()
+# Flip dictionary: abbreviation -> full name
+journal_fullname_to_abbrev = {v: k for k, v in journal_dict.items()}
 
 with st.form("search_form"):
     email = st.text_input("📧 Your email (optional, for update subscription):")
     journal_inputs = st.multiselect(
         "Select journals (start typing to search):",
-        options=list(journal_dict.keys()),
+        options=list(journal_fullname_to_abbrev.keys()),
         help="You can add multiple journals."
     )
-    start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
-    end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
+
+    date_option = st.selectbox(
+        "Select date range:",
+        ["Custom", "Past Week", "Past Month", "Past Year"]
+    )
+
+    start_date = ""
+    end_date = ""
+    if date_option == "Custom":
+        start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
+        end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
+    else:
+        today = datetime.today().date()
+        if date_option == "Past Week":
+            start_date = str(today - timedelta(days=7))
+        elif date_option == "Past Month":
+            start_date = str(today - timedelta(days=30))
+        elif date_option == "Past Year":
+            start_date = str(today - timedelta(days=365))
+        end_date = str(today)
+
     raw_keywords = st.text_area("Keyword logic (optional)", height=100)
     subscribe = st.checkbox("📬 Subscribe to automatic updates")
 
@@ -59,9 +81,9 @@ if submitted:
         formatted_journals = []
         for j in journal_inputs:
             try:
-                formatted = format_journal_abbreviation(j.strip(), journal_dict)
-                formatted_journals.append(formatted)
-            except ValueError as e:
+                abbrev = journal_fullname_to_abbrev[j.strip()]
+                formatted_journals.append(abbrev)
+            except KeyError:
                 st.error(f"❌ Error: '{j}' not found in PubMed journal list.")
                 st.stop()
 
