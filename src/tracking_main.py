@@ -353,12 +353,18 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
 ######################################################################
 # function to export the article list to csv file
 
-def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
-
+def export_fetched_articles_as_csv(articles, journal, start_date, end_date, timestamp=None):
     df = pd.DataFrame(articles)
-    df.to_csv(f"JournalTracker_{journal}_{start_date}_to_{end_date}.csv", index=False)
 
-    print(f"Fetched {len(df)} articles and saved to JournalTracker_{journal}_{start_date}_to_{end_date}.csv")
+    # Generate filename with optional timestamp
+    filename = f"JournalTracker_{journal}_{start_date}_to_{end_date}"
+    if timestamp:
+        filename += f"_{timestamp}"
+    filename += ".csv"
+
+    df.to_csv(filename, index=False)
+
+    print(f"📁 Fetched {len(df)} articles and saved to {filename}")
 
 # testing
 # articles = fetch_pubmed_articles_by_date("J Hazard Mater","2024-01-01","2024-12-31",'(methylmercury or mercury or Hg or megh) AND (rice)')

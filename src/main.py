@@ -10,22 +10,24 @@ from tracking_main import (
 
 def main():
     print("Welcome to the Research Tracker!")
-    
+
+    user_email = input("📧 Enter your email address (optional, press Enter to skip): ").strip()
+
     while True:
         print("\n📘 How it works:")
-        print("1. Enter a journal name (e.g., Environmental Science & Technology)")
+        print("1. Enter one or more journal names (e.g., Environmental Science & Technology, J Hazard Mater)")
         print("2. Enter a date range (e.g., 2024-01 to 2024-03)")
         print("3. Optionally enter keyword logic for targeted searches")
         print("   💡 Example: (cadmium OR \"cadmium exposure\") AND rice")
         print("   ❗ Wildcards (*, ?) are NOT currently supported.")
         print("   ⏪ Type 'exit' or 'q' anytime to cancel and return.\n")
-        
+
         print("Please select an option:")
         print("1. Track journals")
         print("2. Exit")
 
         choice = input("Enter your choice: ").strip().lower()
-        
+
         if choice == '2' or choice in {'exit', 'q'}:
             print("👋 Exiting. Goodbye!")
             break
@@ -33,22 +35,43 @@ def main():
         if choice != '1':
             print("Invalid choice. Please try again.")
             continue
-        
-        # Journal name input
+
+        # Journal names input (comma-separated)
         while True:
-            journal = input("Enter the journal name: ").strip()
-            if journal.lower() in {'exit', 'q'}:
+            journal_input = input("Enter journal name(s), separated by commas: ").strip()
+            if journal_input.lower() in {'exit', 'q'}:
                 break
+            journal_names = [j.strip() for j in journal_input.split(',') if j.strip()]
+            if not journal_names:
+                print("❌ No valid journal names entered. Try again.")
+                continue
 
             journal_dict = load_pubmed_journal_abbreviations()
-            try:
-                formatted_journal = format_journal_abbreviation(journal, journal_dict)
-                break
-            except ValueError as e:
-                print(f"Error: {e}")
-                print("Please enter a valid journal name or abbreviation.")
+            formatted_journals = {}
+            invalid_journals = []
+            for journal in journal_names:
+                try:
+                    formatted_journal = format_journal_abbreviation(journal, journal_dict)
+                    formatted_journals[journal] = formatted_journal
+                except ValueError as e:
+                    print(f"❌ Error with '{journal}': {e}")
+                    invalid_journals.append(journal)
 
-        if journal.lower() in {'exit', 'q'}:
+            if invalid_journals:
+                print("\n⚠️ The following journal(s) were not recognized:")
+                for j in invalid_journals:
+                    print(f"- {j}")
+                retry = input("Would you like to re-enter journal names? (y/n): ").strip().lower()
+                if retry == 'y':
+                    continue
+                elif not formatted_journals:
+                    print("❌ No valid journals to continue. Returning to main menu.")
+                    break
+
+            if formatted_journals:
+                break
+
+        if journal_input.lower() in {'exit', 'q'}:
             continue
 
         # Start date input
@@ -95,7 +118,6 @@ def main():
 
             formatted_keywords = None
             if raw_keywords:
-                # Check for unbalanced parentheses
                 if raw_keywords.count("(") != raw_keywords.count(")"):
                     print("⚠️ Unbalanced parentheses in keyword logic. Please correct it.")
                     continue
@@ -106,9 +128,8 @@ def main():
                     print(f"❌ Error formatting keywords: {e}")
                     continue
 
-            # Show summary before fetching
             print("\n🔎 Search Summary:")
-            print(f"📚 Journal: {journal}")
+            print(f"📚 Journals: {', '.join(formatted_journals.keys())}")
             print(f"📅 Date Range: {start_date} to {end_date}")
             print(f"🔍 Keywords: {formatted_keywords if formatted_keywords else '[None entered]'}")
             confirm = input("Proceed with this search? (y/n): ").strip().lower()
@@ -116,24 +137,25 @@ def main():
                 print("⏪ Returning to main menu...\n")
                 break
 
-            try:
-                articles = fetch_pubmed_articles_by_date(
-                    formatted_journal, start_date, end_date, formatted_keywords
-                )
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-                if articles:
-                    print(f"✅ Found {len(articles)} articles. Saving to CSV...")
-                    export_fetched_articles_as_csv(articles, journal, start_date, end_date)
-                    break
-                else:
-                    print("❌ No articles found. You can try refining your keywords.")
-                    retry = input("🔁 Enter new keywords? (y/n): ").strip().lower()
-                    if retry != 'y':
-                        break
+            for user_journal, formatted_journal in formatted_journals.items():
+                try:
+                    print(f"\n🔄 Searching: {user_journal} ({formatted_journal})")
+                    articles = fetch_pubmed_articles_by_date(
+                        formatted_journal, start_date, end_date, formatted_keywords
+                    )
 
-            except Exception as e:
-                print(f"❌ An error occurred: {e}")
-                break
+                    if articles:
+                        print(f"✅ Found {len(articles)} articles. Saving to CSV...")
+                        export_fetched_articles_as_csv(articles, user_journal, start_date, end_date, timestamp)
+                    else:
+                        print(f"❌ No articles found for {user_journal}. You can try refining your keywords.")
+
+                except Exception as e:
+                    print(f"❌ Error while processing {user_journal}: {e}")
+
+            break  # Exit keyword loop after processing all journals
 
 if __name__ == "__main__":
     main()
