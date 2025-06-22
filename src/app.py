@@ -19,7 +19,7 @@ Enter your search criteria below.
 """)
 
 with st.form("search_form"):
-    journal = st.text_input("Journal name (e.g., Environ Sci Technol):")
+    journal = st.text_input("Journal name or abbreviation (e.g., Environmental Science & Technology or  Environ Sci Technol):")
     start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
     end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
     raw_keywords = st.text_area("Keyword logic (optional)", height=100)
