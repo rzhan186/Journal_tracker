@@ -361,7 +361,7 @@ def export_fetched_articles_as_csv(articles,journal,start_date,end_date):
     print(f"Fetched {len(df)} articles and saved to JournalTracker_{journal}_{start_date}_to_{end_date}.csv")
 
 # testing
-# articles = fetch_pubmed_articles_by_date("Environ Sci Technol","2025-02-10","2025-02-12",'(climat* OR "global warming") AND (mercury OR pollution)')
+# articles = fetch_pubmed_articles_by_date("J Hazard Mater","2024-01-01","2024-12-31",'(methylmercury or mercury or Hg or megh) AND (rice)')
 
 
 # More update update:
