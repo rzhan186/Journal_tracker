@@ -9,9 +9,9 @@ An easy-to-use PubMed search tool for journal articles. This app lets you:
 
 ## 🚀 Run Online (Streamlit Web App)
 
-Click to launch: [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io)
+Click the link below to launch: [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io)
 
-> Coming soon – after you deploy!
+> (https://journaltracker.streamlit.app/)
 
 ## 🖥 Run Locally
 
