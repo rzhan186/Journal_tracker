@@ -1,4 +1,6 @@
+import pandas as pd
 from datetime import datetime
+
 from tracking_main import (
     fetch_pubmed_articles_by_date,
     export_fetched_articles_as_csv,
@@ -8,29 +10,57 @@ from tracking_main import (
     format_boolean_keywords_for_pubmed,
 )
 
+def setup_automatic_updates(email, journals, keywords, start_date, end_date):
+    while True:
+        update_frequency = input("\n⏳ Set your update frequency (daily/weekly/monthly/custom): ").strip().lower()
+        if update_frequency in {'daily', 'weekly', 'monthly', 'custom'}:
+            print(f"✅ Automatic {update_frequency} updates will be scheduled for {email}.")
+            # Save/update to backend
+            store_user_subscription(
+                email=email,
+                journals=journals,
+                keywords=keywords,
+                start_date=start_date,
+                end_date=end_date,
+                frequency=update_frequency
+            )
+            return
+        else:
+            print("❌ Invalid choice. Please enter: daily, weekly, monthly, or custom.")
+
 def main():
     print("Welcome to the Research Tracker!")
 
-    user_email = input("📧 Enter your email address (optional, press Enter to skip): ").strip()
+    user_email = input("\U0001F4E7 Enter your email address (optional, press Enter to skip): ").strip()
 
     while True:
-        print("\n📘 How it works:")
+        print("\n\U0001F4D8 How it works:")
         print("1. Enter one or more journal names (e.g., Environmental Science & Technology, J Hazard Mater)")
         print("2. Enter a date range (e.g., 2024-01 to 2024-03)")
         print("3. Optionally enter keyword logic for targeted searches")
-        print("   💡 Example: (cadmium OR \"cadmium exposure\") AND rice")
+        print("   \U0001F4A1 Example: (cadmium OR \"cadmium exposure\") AND rice")
         print("   ❗ Wildcards (*, ?) are NOT currently supported.")
         print("   ⏪ Type 'exit' or 'q' anytime to cancel and return.\n")
 
         print("Please select an option:")
         print("1. Track journals")
-        print("2. Exit")
+        print("2. Set up automatic updates")
+        print("3. Exit")
 
         choice = input("Enter your choice: ").strip().lower()
 
-        if choice == '2' or choice in {'exit', 'q'}:
-            print("👋 Exiting. Goodbye!")
+        if choice == '3' or choice in {'exit', 'q'}:
+            print("\U0001F44B Exiting. Goodbye!")
             break
+
+        if choice == '2':
+            if not user_email:
+                user_email = input("\U0001F4E7 Please enter your email address to receive updates: ").strip()
+                if not user_email:
+                    print("❌ Email required to enable updates.")
+                    continue
+            print("\n⏳ You'll be prompted to enter your query now for scheduling automatic updates.")
+            choice = '1'
 
         if choice != '1':
             print("Invalid choice. Please try again.")
@@ -80,7 +110,7 @@ def main():
             if start_date.lower() in {'exit', 'q'}:
                 break
             if not start_date:
-                print("📅 No start date provided. Using current month.")
+                print("\U0001F4C5 No start date provided. Using current month.")
                 break
             if validate_date_input(start_date):
                 break
@@ -96,7 +126,7 @@ def main():
                 break
             if not end_date:
                 end_date = start_date
-                print(f"📅 No end date provided. Using start date as end date: {end_date}")
+                print(f"\U0001F4C5 No end date provided. Using start date as end date: {end_date}")
                 break
             if validate_date_input(end_date):
                 break
@@ -138,6 +168,7 @@ def main():
                 break
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            all_articles = []
 
             for user_journal, formatted_journal in formatted_journals.items():
                 try:
@@ -147,13 +178,23 @@ def main():
                     )
 
                     if articles:
-                        print(f"✅ Found {len(articles)} articles. Saving to CSV...")
-                        export_fetched_articles_as_csv(articles, user_journal, start_date, end_date, timestamp)
+                        for article in articles:
+                            article['Source Journal'] = user_journal
+                        all_articles.extend(articles)
                     else:
                         print(f"❌ No articles found for {user_journal}. You can try refining your keywords.")
 
                 except Exception as e:
                     print(f"❌ Error while processing {user_journal}: {e}")
+
+            if all_articles:
+                print(f"✅ Total articles found across all journals: {len(all_articles)}. Saving to CSV...")
+                export_fetched_articles_as_csv(all_articles, "CombinedJournals", start_date, end_date, timestamp)
+
+                if user_email:
+                    post_search_opt_in = input("\n📬 Would you like to subscribe to automatic updates for this query? (y/n): ").strip().lower()
+                    if post_search_opt_in == 'y':
+                        setup_automatic_updates(user_email, list(formatted_journals.values()), formatted_keywords, start_date, end_date)
 
             break  # Exit keyword loop after processing all journals
 
