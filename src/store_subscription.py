@@ -29,9 +29,13 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
         }
 
         response = supabase.table("subscriptions").insert(data).execute()
-        if response.status_code == 201:
+
+        if response.data:
             print("✅ Subscription successfully stored.")
+            print("📦 Data:", response.data)
         else:
-            print(f"⚠️ Failed to store subscription: {response.status_code}")
+            print("⚠️ Failed to store subscription.")
+            print("🔍 Response:", response)
+
     except Exception as e:
         print(f"❌ Error storing subscription: {e}")

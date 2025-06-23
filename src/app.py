@@ -111,7 +111,7 @@ if submitted:
             st.download_button("📥 Download CSV", csv, file_name="PubMed_Results.csv", mime="text/csv")
 
             if subscribe and email:
-                store_user_subscription(
+                res = store_user_subscription(
                     email=email,
                     journals=formatted_journals,
                     keywords=keywords,
@@ -120,6 +120,7 @@ if submitted:
                     frequency=frequency
                 )
                 st.success(f"📬 You will receive {frequency} updates at {email}.")
+                st.write("🛠️ Supabase insert result:", res)
 
         else:
             st.warning("❌ No articles found. Try different keywords or date ranges.")
