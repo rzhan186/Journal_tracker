@@ -88,14 +88,9 @@ with st.form("search_form"):
 if submitted:
     try:
         formatted_journals = []
-        entered_journals = [j.strip() for j in journal_inputs.split(",") if j.strip()]
-        journal_dict_ci = {k.lower(): v for k, v in journal_dict.items()}
-
-        for name in entered_journals:
-            key = name.lower()
-            if key in journal_dict_ci:
-                abbrev = journal_dict_ci[key]
-                formatted_journals.append(abbrev)
+        for name in selected_journals:
+            if name in journal_dict:
+                formatted_journals.append(journal_dict[name])
             else:
                 st.error(f"❌ Error: '{name}' not found in PubMed journal list.")
                 st.stop()
