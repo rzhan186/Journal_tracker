@@ -5,7 +5,9 @@ from tracking_main import (
     load_pubmed_journal_abbreviations,
     format_journal_abbreviation,
     format_boolean_keywords_for_pubmed,
-)
+    build_pubmed_query
+    )
+
 import pandas as pd
 import os
 from store_subscription import store_user_subscription  # New: for Supabase integration
@@ -118,7 +120,7 @@ if submitted:
             if raw_keywords.count('(') != raw_keywords.count(')'):
                 st.warning("⚠️ Unbalanced parentheses in your keyword logic.")
                 st.stop()
-            keywords = format_boolean_keywords_for_pubmed(raw_keywords.strip(), strict=strict_match)
+            keywords = format_boolean_keywords_for_pubmed(raw_keywords.strip())
 
         # ✅ Show formatted keyword query (whether or not keywords were entered)
         st.caption("🔍 Formatted PubMed keyword logic:")
