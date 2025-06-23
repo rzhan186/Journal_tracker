@@ -44,15 +44,19 @@ with st.form("search_form"):
     date_option = st.selectbox(
         "📅 Select date range:",
         ["Past Week", "Past Month", "Past Year", "Custom"],
-        index=0  # Default to "Past Week"
+        index=0
     )
 
-
     today = datetime.today().date()
+    start_date = None
+    end_date = None
 
     if date_option == "Custom":
-        start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
-        end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
+        with col2:
+            end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
     else:
         if date_option == "Past Week":
             start_date = str(today - timedelta(days=7))
@@ -61,7 +65,6 @@ with st.form("search_form"):
         elif date_option == "Past Year":
             start_date = str(today - timedelta(days=365))
         end_date = str(today)
-
 
     raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height=100,
                                 help="Use AND, OR, NOT. Wrap phrases in quotes. E.g., (cadmium OR \"cadmium exposure\") AND rice \n Wildcards like `*` and `?` are **not** supported  ")
