@@ -28,6 +28,31 @@ Use this tool to search for recent articles by journal, date range, and keyword.
 
 journal_dict = load_pubmed_journal_abbreviations()
 
+date_option = st.selectbox(
+    "📅 Select date range:",
+    ["Past Week", "Past Month", "Past Year", "Custom"],
+    index=0
+)
+
+today = datetime.today().date()
+start_date = None
+end_date = None
+
+if date_option == "Custom":
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
+    with col2:
+        end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
+else:
+    if date_option == "Past Week":
+        start_date = str(today - timedelta(days=7))
+    elif date_option == "Past Month":
+        start_date = str(today - timedelta(days=30))
+    elif date_option == "Past Year":
+        start_date = str(today - timedelta(days=365))
+    end_date = str(today)
+
 with st.form("search_form"):
     email = st.text_input("📧 Enter your email (Optional):",
         help="Required by NCBI Entrez API. This is optional and only used for API compliance.")
@@ -41,30 +66,7 @@ with st.form("search_form"):
         options=journal_options,
         help="Start typing to search and select one or more journal names. Case-sensitive based on PubMed official names.")
 
-    date_option = st.selectbox(
-        "📅 Select date range:",
-        ["Past Week", "Past Month", "Past Year", "Custom"],
-        index=0
-    )
-
-    today = datetime.today().date()
-    start_date = None
-    end_date = None
-
-    if date_option == "Custom":
-        col1, col2 = st.columns(2)
-        with col1:
-            start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
-        with col2:
-            end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
-    else:
-        if date_option == "Past Week":
-            start_date = str(today - timedelta(days=7))
-        elif date_option == "Past Month":
-            start_date = str(today - timedelta(days=30))
-        elif date_option == "Past Year":
-            start_date = str(today - timedelta(days=365))
-        end_date = str(today)
+    ##### 
 
     raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height=100,
                                 help="Use AND, OR, NOT. Wrap phrases in quotes. E.g., (cadmium OR \"cadmium exposure\") AND rice \n Wildcards like `*` and `?` are **not** supported  ")
