@@ -71,7 +71,11 @@ else:
 
 # Keyword input
 raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height=100,
-    help="Use AND, OR, NOT. Wrap phrases in quotes. E.g., (cadmium OR \"cadmium exposure\") AND rice \nWildcards like `*` and `?` are not supported.")
+    help="""Use AND, OR, NOT for logic. 
+            Wrap exact phrases in quotes: "cadmium exposure"  
+            Use wildcards: 
+            - Asterisk (*) matches multiple characters: metagenom* → metagenome, metagenomics  
+            - Question mark (?) matches a single character: wom?n → woman, women"""
 
 # Subscription options
 subscribe = st.checkbox("📬 Subscribe to automatic updates")
@@ -110,12 +114,27 @@ if submitted:
                 st.error(f"❌ '{full_name}' not found in the journal list.")
                 st.stop()
 
-        keywords = None
         if raw_keywords.strip():
             if raw_keywords.count('(') != raw_keywords.count(')'):
                 st.warning("⚠️ Unbalanced parentheses in your keyword logic.")
                 st.stop()
-            keywords = format_boolean_keywords_for_pubmed(raw_keywords.strip())
+            keywords = format_boolean_keywords_for_pubmed(raw_keywords.strip(), strict=strict_match)
+
+        # ✅ Show formatted keyword query (whether or not keywords were entered)
+        st.caption("🔍 Formatted PubMed keyword logic:")
+        st.code(keywords if keywords else "(None)", language="none")
+
+        # ✅ Optional full query preview
+        if selected_journals:
+            query_preview = build_pubmed_query(
+                journal=selected_journals[0],
+                start_date=start_date,
+                end_date=end_date,
+                keywords=keywords
+            )
+            st.caption("📄 Final PubMed query (1st journal shown):")
+            st.code(query_preview, language="none")
+
 
         with st.status("🔍 Starting PubMed search...", expanded=True) as status:
             all_articles = []
