@@ -135,8 +135,11 @@ if submitted:
 
         all_articles = []
 
-        for journal in formatted_journals:
-            articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
+        for i, abbrev in enumerate(formatted_journals):
+            full_name = selected_journals[i]
+            articles = fetch_pubmed_articles_by_date(full_name, start_date, end_date, keywords)
+            for article in articles:
+                article["Journal"] = full_name
             for article in articles:
                 article["Journal"] = selected_journals[formatted_journals.index(journal)]
             all_articles.extend(articles)
