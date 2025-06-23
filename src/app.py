@@ -120,29 +120,18 @@ if submitted:
         with st.status("🔍 Starting PubMed search...", expanded=True) as status:
             all_articles = []
 
-            for i, journal in enumerate(formatted_journals):
-                st.write(f"📖 Searching: **{journal}** ({i+1}/{len(formatted_journals)})")
+            for i, full_name in enumerate(selected_journals):
+                st.write(f"📖 Searching: **{full_name}** ({i+1}/{len(selected_journals)})")
 
-                articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
+                articles = fetch_pubmed_articles_by_date(full_name, start_date, end_date, keywords)
                 for article in articles:
-                    article["Journal"] = selected_journals[formatted_journals.index(journal)]
+                    article["Journal"] = full_name
                 all_articles.extend(articles)
 
             if all_articles:
                 status.update(label=f"✅ Found {len(all_articles)} article(s).", state="complete")
             else:
                 status.update(label="⚠️ No articles found. Try different keywords or date ranges.", state="error")
-
-        all_articles = []
-
-        for i, abbrev in enumerate(formatted_journals):
-            full_name = selected_journals[i]
-            articles = fetch_pubmed_articles_by_date(full_name, start_date, end_date, keywords)
-            for article in articles:
-                article["Journal"] = full_name
-            for article in articles:
-                article["Journal"] = selected_journals[formatted_journals.index(journal)]
-            all_articles.extend(articles)
 
         if all_articles:
             df = pd.DataFrame(all_articles)
