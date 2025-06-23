@@ -32,10 +32,11 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
 
         if response.data:
             print("✅ Subscription successfully stored.")
-            print("📦 Data:", response.data)
         else:
             print("⚠️ Failed to store subscription.")
-            print("🔍 Response:", response)
+
+        return response  # ✅ Add this line
 
     except Exception as e:
         print(f"❌ Error storing subscription: {e}")
+        return {"error": str(e)}  # ✅ Return error to show in app
