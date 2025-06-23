@@ -36,10 +36,11 @@ with st.form("search_form"):
     email = st.text_input("Enter your email (Optional):",
         help="Required by NCBI Entrez API. This is optional and only used for API compliance.")
 
-    journal_inputs = st.text_area(
-        "Enter journal name(s), separated by commas:",
-        help="You can enter one or more full journal names (case-insensitive), separated by commas."
-    )
+    journal_options = list(journal_dict.keys())
+    selected_journals = st.multiselect(
+        "📘 Select journal(s):",
+        options=journal_options,
+        help="Start typing to search and select one or more journal names. Case-sensitive based on PubMed official names.")
 
     date_option = st.selectbox(
         "Select date range:",
