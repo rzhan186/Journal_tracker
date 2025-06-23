@@ -129,9 +129,9 @@ if submitted:
                 all_articles.extend(articles)
 
             if all_articles:
-                status.update(label="✅ Articles fetched successfully!", state="complete")
+                status.update(label=f"✅ Found {len(all_articles)} article(s).", state="complete")
             else:
-                status.update(label="⚠️ No articles found. Try different keywords or date ranges.", state="warning")
+                status.update(label="⚠️ No articles found. Try different keywords or date ranges.", state="error")
 
         all_articles = []
 
