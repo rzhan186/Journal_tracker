@@ -30,18 +30,15 @@ Enter your search criteria below.
 """)
 
 journal_dict = load_pubmed_journal_abbreviations()
-# Flip dictionary: full name -> abbreviation (case sensitive)
-journal_fullname_to_abbrev = {v: k for k, v in journal_dict.items()}
 
 with st.form("search_form"):
     st.markdown("**📧 Email Address** *(Optional – required by NCBI Entrez API, used only for contact)*")
     email = st.text_input("Enter your email (Optional):",
         help="Required by NCBI Entrez API. This is optional and only used for API compliance.")
 
-    journal_inputs = st.multiselect(
-        "Select journals (start typing to search):",
-        options=sorted(journal_fullname_to_abbrev.keys()),
-        help="You can add multiple journals. Case-sensitive."
+    journal_inputs = st.text_area(
+        "Enter journal name(s), separated by commas:",
+        help="You can enter one or more full journal names (case-insensitive), separated by commas."
     )
 
     date_option = st.selectbox(
@@ -90,13 +87,16 @@ with st.form("search_form"):
 if submitted:
     try:
         formatted_journals = []
-        for j in journal_inputs:
-            key = j.strip()
-            if key in journal_fullname_to_abbrev:
-                abbrev = journal_fullname_to_abbrev[key]
+        entered_journals = [j.strip() for j in journal_inputs.split(",") if j.strip()]
+        journal_dict_ci = {k.lower(): v for k, v in journal_dict.items()}
+
+        for name in entered_journals:
+            key = name.lower()
+            if key in journal_dict_ci:
+                abbrev = journal_dict_ci[key]
                 formatted_journals.append(abbrev)
             else:
-                st.error(f"❌ Error: '{j}' not found in PubMed journal list.")
+                st.error(f"❌ Error: '{name}' not found in PubMed journal list.")
                 st.stop()
 
         keywords = None
