@@ -75,7 +75,7 @@ raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height
             Wrap exact phrases in quotes: "cadmium exposure"  
             Use wildcards: 
             - Asterisk (*) matches multiple characters: metagenom* → metagenome, metagenomics  
-            - Question mark (?) matches a single character: wom?n → woman, women"""
+            - Question mark (?) matches a single character: wom?n → woman, women""")
 
 # Subscription options
 subscribe = st.checkbox("📬 Subscribe to automatic updates")
