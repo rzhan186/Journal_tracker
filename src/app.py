@@ -30,17 +30,18 @@ Enter your search criteria below.
 """)
 
 journal_dict = load_pubmed_journal_abbreviations()
-# Flip dictionary: abbreviation -> full name
-journal_fullname_to_abbrev = {v.lower(): k for k, v in journal_dict.items()}
+# Flip dictionary: full name -> abbreviation (case sensitive)
+journal_fullname_to_abbrev = {v: k for k, v in journal_dict.items()}
 
 with st.form("search_form"):
     st.markdown("**📧 Email Address** *(Optional – required by NCBI Entrez API, used only for contact)*")
-    email = st.text_input("Enter your email:")
+    email = st.text_input("Enter your email (Optional):",
+        help="Required by NCBI Entrez API. This is optional and only used for API compliance.")
 
     journal_inputs = st.multiselect(
         "Select journals (start typing to search):",
         options=sorted(journal_fullname_to_abbrev.keys()),
-        help="You can add multiple journals. Case-insensitive."
+        help="You can add multiple journals. Case-sensitive."
     )
 
     date_option = st.selectbox(
@@ -63,9 +64,8 @@ with st.form("search_form"):
             start_date = str(today - timedelta(days=365))
         end_date = str(today)
 
-    st.markdown("**🔑 Keyword Logic (Optional)**")
-    st.markdown("Use AND, OR, NOT. Wrap phrases in quotes. E.g., `(cadmium OR \"cadmium exposure\") AND rice`")
-    raw_keywords = st.text_area("Enter your keyword logic:", height=100)
+    raw_keywords = st.text_area("Enter your search keyword (Optional) :", height=100,
+                                help="Use AND, OR, NOT. Wrap phrases in quotes. E.g., (cadmium OR \"cadmium exposure\") AND rice")
 
     subscribe = st.checkbox("📬 Subscribe to automatic updates")
 
@@ -82,7 +82,8 @@ with st.form("search_form"):
         else:
             frequency = freq_choice
 
-        subscriber_email = st.text_input("📧 Email to receive updates:")
+        subscriber_email = st.text_input("📧 Email to receive updates:",
+                                         help="Where your automated journal updates will be sent")
 
     submitted = st.form_submit_button("🔍 Search")
 
@@ -90,7 +91,7 @@ if submitted:
     try:
         formatted_journals = []
         for j in journal_inputs:
-            key = j.lower().strip()
+            key = j.strip()
             if key in journal_fullname_to_abbrev:
                 abbrev = journal_fullname_to_abbrev[key]
                 formatted_journals.append(abbrev)
