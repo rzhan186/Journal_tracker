@@ -36,7 +36,10 @@ with st.form("search_form"):
     email = st.text_input("Enter your email (Optional):",
         help="Required by NCBI Entrez API. This is optional and only used for API compliance.")
 
-    journal_options = list(journal_dict.keys())
+    # Reverse dictionary so full names are keys and abbreviations are values
+    full_to_abbrev = {v: k for k, v in journal_dict.items()}
+    journal_options = list(full_to_abbrev.keys())
+
     selected_journals = st.multiselect(
         "📘 Select journal(s):",
         options=journal_options,
@@ -87,12 +90,17 @@ with st.form("search_form"):
 
 if submitted:
     try:
+        if not selected_journals:
+            st.error("❌ Please select at least one journal.")
+            st.stop()
+
         formatted_journals = []
-        for name in selected_journals:
-            if name in journal_dict:
-                formatted_journals.append(journal_dict[name])
+        for full_name in selected_journals:
+            abbrev = full_to_abbrev.get(full_name)
+            if abbrev:
+                formatted_journals.append(abbrev)
             else:
-                st.error(f"❌ Error: '{name}' not found in PubMed journal list.")
+                st.error(f"❌ '{full_name}' not found in the journal list.")
                 st.stop()
 
         keywords = None
@@ -108,7 +116,7 @@ if submitted:
         for journal in formatted_journals:
             articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
             for article in articles:
-                article["Journal"] = journal  # tag article with journal name
+                article["Journal"] = selected_journals[formatted_journals.index(journal)]
             all_articles.extend(articles)
 
         if all_articles:
