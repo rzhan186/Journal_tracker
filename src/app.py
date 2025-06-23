@@ -28,11 +28,11 @@ Use this tool to search for recent articles by journal, date range, and keyword.
 
 journal_dict = load_pubmed_journal_abbreviations()
 
-date_option = st.selectbox(
-    "📅 Select date range:",
-    ["Past Week", "Past Month", "Past Year", "Custom"],
-    index=0
-)
+# date_option = st.selectbox(
+#     "📅 Select date range:",
+#     ["Past Week", "Past Month", "Past Year", "Custom"],
+#     index=0
+# )
 
 # today = datetime.today().date()
 # start_date = None
