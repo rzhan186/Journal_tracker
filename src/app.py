@@ -124,7 +124,7 @@ if subscribe:
     else:
         frequency = freq_choice
 
-    st.markdown("### ✅ Confirm your subscription")
+    st.markdown(""" ✅ Confirm your subscription""")
     st.info(f"""
 **Email**: {subscriber_email or "Not provided"}  
 **Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
