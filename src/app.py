@@ -139,13 +139,16 @@ if subscribe:
             st.error("❌ Please select at least one journal.")
         else:
             formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
+            csv_bytes = df.to_csv(index=False).encode("utf-8")  # ✅ New line to generate CSV bytes
+
             result = store_user_subscription(
                 email=subscriber_email,
                 journals=formatted_journals,
                 keywords=raw_keywords,
                 start_date=start_date,
                 end_date=end_date,
-                frequency=frequency
+                frequency=frequency,
+                csv_bytes=csv_bytes  # ✅ Pass into function
             )
             st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
             st.write("🛠️ Supabase insert result:", result)
