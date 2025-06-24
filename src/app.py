@@ -115,16 +115,13 @@ if st.session_state.show_search:
                 df = pd.DataFrame(all_articles)
                 st.success(f"✅ Found {len(df)} articles!")
                 st.download_button("📥 Download CSV", df.to_csv(index=False).encode("utf-8"),
-                    file_name="PubMed_Results.csv", mime="text/csv")
+                    file_name="PubMed_Results.ƒSecsv", mime="text/csv")
 
         except Exception as e:
             st.error(f"❌ Error occurred: {e}")
 
 # --- Subscription Section Below Search ---
-st.markdown("---")
-st.markdown("### 📬 Subscribe to automatic updates")
-
-subscribe = st.checkbox("Subscribe to automatic updates", key="subscribe_toggle")
+subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
 if subscribe:
     st.session_state.show_search = False
