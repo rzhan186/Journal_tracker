@@ -73,11 +73,10 @@ else:
 
 # Keyword input
 raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height=100,
-    help="""Use AND, OR, NOT for logic. 
-            Wrap exact phrases in quotes: "cadmium exposure"  
-            Use wildcards: 
-            - Asterisk (*) matches multiple characters: metagenom* → metagenome, metagenomics  
-            - Question mark (?) matches a single character: wom?n → woman, women""")
+    help="""Use AND, OR, NOT for logic. \n 
+            Wrap exact phrases in parentheses: (cadmium exposure) \n"  
+            - Use wildcards to matche multiple characters: metagenom* → metagenome, metagenomics \n 
+            - Use question mark matches a single character: wom?n → woman, women""")
 
 # Subscription options
 subscribe = st.checkbox("📬 Subscribe to automatic updates")
