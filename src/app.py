@@ -110,12 +110,6 @@ if st.session_state.show_search:
 # --- Subscribe toggle ---
 subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
-# Toggle view between search and subscribe
-if subscribe and st.session_state.show_search:
-    st.session_state.show_search = False
-elif not subscribe and not st.session_state.show_search:
-    st.session_state.show_search = True
-
 # Subscription section only renders when checked
 if subscribe:
     col1, col2 = st.columns(2)
