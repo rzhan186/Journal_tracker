@@ -108,9 +108,13 @@ if st.session_state.show_search:
             st.error(f"❌ Error: {e}")
 
 # --- Subscribe toggle ---
-subscribe = st.checkbox("📬 Subscribe to automatic updates")
-if subscribe:
+subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
+
+# Toggle the search/subscribe views based on checkbox state
+if subscribe and st.session_state.show_search:
     st.session_state.show_search = False
+elif not subscribe and not st.session_state.show_search:
+    st.session_state.show_search = True
 
     # Frequency + Email row
     col1, col2 = st.columns(2)
