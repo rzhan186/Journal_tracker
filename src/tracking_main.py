@@ -254,9 +254,6 @@ def parse_pubmed_article(paper_info):
     }
 
 
-
-
-
 ######################################################################
 def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywords=None):
 
@@ -365,9 +362,6 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
     df.to_csv(filename, index=False)
 
     print(f"📁 Fetched {len(df)} articles and saved to {filename}")
-
-# testing
-# articles = fetch_pubmed_articles_by_date("J Hazard Mater","2024-01-01","2024-12-31",'(methylmercury or mercury or Hg or megh) AND (rice)')
 
 
 # More update update:
