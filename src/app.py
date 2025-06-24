@@ -3,7 +3,6 @@ import streamlit as st
 from tracking_main import (
     fetch_pubmed_articles_by_date,
     load_pubmed_journal_abbreviations,
-    format_journal_abbreviation,
     format_boolean_keywords_for_pubmed,
     build_pubmed_query
     )
@@ -25,12 +24,11 @@ st.title("📚 PubMed Journal Tracker")
 
 st.markdown("""
 Welcome to the **PubMed Journal Tracker**!  
-Use this tool to search for recent articles by journal, date range, and keyword.
+Use this tool to search for articles by journal, date range, and keywords.
+Subscribe to periodic update from your journals and topic of interests.
 """)
 
 journal_dict = load_pubmed_journal_abbreviations()
-
-st.markdown("### 🔍 Search Criteria")
 
 email = st.text_input("📧 Enter your email (Optional):",
     help="Required by NCBI Entrez API. This is optional and only used for API compliance.")
@@ -75,7 +73,7 @@ else:
 raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height=100,
     help="""🔎 **Search Tips**  
         - Use **AND**, **OR**, **NOT** for logical combinations.  
-        - Wrap exact phrases in **parentheses**: *(cadmium exposure)*  
+        - Wrap phrases in **parentheses**: *(cadmium exposure)*  
         - Use **wildcards** for flexible matches:  
         • Asterisk `*` matches multiple characters → `metagenom*` matches *metagenome*, *metagenomics*  
         • Question mark `?` matches a single character → `wom?n` matches *woman*, *women*  
@@ -164,6 +162,47 @@ if submitted:
 
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button("📥 Download CSV", csv, file_name="PubMed_Results.csv", mime="text/csv")
+
+            # --- Subscription section shown only if articles are found ---
+            if all_articles:
+                st.divider()
+                st.subheader("📬 Subscribe to Automatic Updates")
+
+                with st.form("subscribe_form"):
+                    st.markdown("Stay informed with regular updates from your selected journals.")
+
+                    sub_email = st.text_input("📧 Email to receive updates:", value=subscriber_email or "",
+                                            help="Where your automated journal updates will be sent")
+
+                    freq = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"], index=0)
+                    if freq == "custom":
+                        interval_days = st.number_input("🔧 Custom interval (in days):", min_value=1, step=1)
+                        freq_text = f"every {interval_days} days"
+                    else:
+                        freq_text = freq
+
+                    confirm = st.form_submit_button("📨 Subscribe Now")
+
+                    if confirm:
+                        if not sub_email:
+                            st.warning("❗ Please enter an email address to subscribe.")
+                        else:
+                            # Insert into Supabase (or your backend)
+                            result = store_user_subscription(
+                                email=sub_email,
+                                journals=formatted_journals,
+                                keywords=keywords,
+                                start_date=start_date,
+                                end_date=end_date,
+                                frequency=freq_text
+                            )
+
+                            st.success(f"✅ You’re now subscribed to updates {freq_text} at **{sub_email}**.")
+                            st.caption("You'll receive updates based on your current selection:")
+                            st.write(f"**Journals:** {', '.join(selected_journals)}")
+                            st.write(f"**Date range:** {start_date} to {end_date}")
+                            st.write(f"**Keywords:** {raw_keywords if raw_keywords else '(none)'}")
+                            st.write("🛠️ Supabase response:", result)
 
             if subscribe and subscriber_email:
                 res = store_user_subscription(
