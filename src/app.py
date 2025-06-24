@@ -126,11 +126,11 @@ if subscribe:
 
     st.markdown(""" ✅ Confirm your subscription""")
     st.info(f"""
-**Email**: {subscriber_email or "Not provided"}  
-**Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
-**Keywords**: {raw_keywords if raw_keywords else "None"}  
-**Frequency**: {frequency}
-""")
+            **Email**: {subscriber_email or "Not provided"}  
+            **Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
+            **Keywords**: {raw_keywords if raw_keywords else "None"}  
+            **Frequency**: {frequency}
+            """)
 
     if st.button("📩 Confirm and Subscribe"):
         if not subscriber_email:
