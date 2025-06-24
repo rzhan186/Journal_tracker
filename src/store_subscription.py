@@ -32,7 +32,7 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
 
     # 3. Get public URL or signed URL
     signed_url_data = supabase.storage.from_("subscription-files").create_signed_url(filename, 86400)
-    public_url = signed_url_data.get("signedURL")
+    signed_url = signed_url_data.get("signedURL")   
 
     # 4. Send confirmation email
     send_email(
@@ -44,7 +44,7 @@ Journals: {', '.join(journals)}
 Keywords: {keywords}
 Frequency: {frequency}
 
-📥 Download your search results: {public_url}
+📥 Download your search results: {signed_url}
 """)
 
-    return {"status": "success", "url": public_url}
+    return {"status": "success", "url": signed_url}
