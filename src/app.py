@@ -118,6 +118,8 @@ if submitted:
                 st.error(f"❌ '{full_name}' not found in the journal list.")
                 st.stop()
 
+        keywords = None
+
         if raw_keywords.strip():
             if raw_keywords.count('(') != raw_keywords.count(')'):
                 st.warning("⚠️ Unbalanced parentheses in your keyword logic.")
