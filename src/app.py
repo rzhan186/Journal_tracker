@@ -3,6 +3,7 @@ import streamlit as st
 from tracking_main import (
     fetch_pubmed_articles_by_date,
     load_pubmed_journal_abbreviations,
+    format_journal_abbreviation,
     format_boolean_keywords_for_pubmed,
     build_pubmed_query
     )
@@ -80,26 +81,33 @@ raw_keywords = st.text_area("❓ Enter your search keyword (Optional) :", height
         """)
 
 # Subscription options
-subscribe = st.checkbox("📬 Subscribe to automatic updates")
+# subscribe = st.checkbox("📬 Subscribe to automatic updates")
 
-frequency = None
-custom_days = None
-subscriber_email = None
+# frequency = None
+# custom_days = None
+# subscriber_email = None
 
-if subscribe:
-    st.markdown("**🔁 Update Frequency**")
-    freq_choice = st.selectbox("How often do you want to receive updates?", ["weekly", "monthly", "custom"])
-    if freq_choice == "custom":
-        custom_days = st.number_input("🔧 Enter custom interval in days:", min_value=1, step=1)
-        frequency = f"every {custom_days} days"
-    else:
-        frequency = freq_choice
+# if subscribe:
+#     st.markdown("**🔁 Update Frequency**")
+#     freq_choice = st.selectbox("How often do you want to receive updates?", ["weekly", "monthly", "custom"])
+#     if freq_choice == "custom":
+#         custom_days = st.number_input("🔧 Enter custom interval in days:", min_value=1, step=1)
+#         frequency = f"every {custom_days} days"
+#     else:
+#         frequency = freq_choice
 
-    subscriber_email = st.text_input("📧 Email to receive updates:",
-                                     help="Where your automated journal updates will be sent")
+#     subscriber_email = st.text_input("📧 Email to receive updates:",
+#                                      help="Where your automated journal updates will be sent")
+
 
 # Manual search button
 submitted = st.button("🔍 Search")
+
+if "show_search" not in st.session_state:
+    st.session_state.show_search = True
+
+if st.session_state.show_search:
+    submitted = st.button("🔍 Search")
 
 if submitted:
     try:
@@ -163,47 +171,6 @@ if submitted:
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button("📥 Download CSV", csv, file_name="PubMed_Results.csv", mime="text/csv")
 
-            # --- Subscription section shown only if articles are found ---
-            if all_articles:
-                st.divider()
-                st.subheader("📬 Subscribe to Automatic Updates")
-
-                with st.form("subscribe_form"):
-                    st.markdown("Stay informed with regular updates from your selected journals.")
-
-                    sub_email = st.text_input("📧 Email to receive updates:", value=subscriber_email or "",
-                                            help="Where your automated journal updates will be sent")
-
-                    freq = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"], index=0)
-                    if freq == "custom":
-                        interval_days = st.number_input("🔧 Custom interval (in days):", min_value=1, step=1)
-                        freq_text = f"every {interval_days} days"
-                    else:
-                        freq_text = freq
-
-                    confirm = st.form_submit_button("📨 Subscribe Now")
-
-                    if confirm:
-                        if not sub_email:
-                            st.warning("❗ Please enter an email address to subscribe.")
-                        else:
-                            # Insert into Supabase (or your backend)
-                            result = store_user_subscription(
-                                email=sub_email,
-                                journals=formatted_journals,
-                                keywords=keywords,
-                                start_date=start_date,
-                                end_date=end_date,
-                                frequency=freq_text
-                            )
-
-                            st.success(f"✅ You’re now subscribed to updates {freq_text} at **{sub_email}**.")
-                            st.caption("You'll receive updates based on your current selection:")
-                            st.write(f"**Journals:** {', '.join(selected_journals)}")
-                            st.write(f"**Date range:** {start_date} to {end_date}")
-                            st.write(f"**Keywords:** {raw_keywords if raw_keywords else '(none)'}")
-                            st.write("🛠️ Supabase response:", result)
-
             if subscribe and subscriber_email:
                 res = store_user_subscription(
                     email=subscriber_email,
@@ -221,3 +188,53 @@ if submitted:
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
+
+
+# 🔔 Intuitive Subscription Flow — below the search results
+st.markdown("---")
+st.markdown("### 📬 Subscribe to automatic updates")
+
+subscribe = st.checkbox("Subscribe to automatic updates", key="subscribe_toggle")
+
+if subscribe:
+    # Hide the search button if subscription is selected
+    st.session_state.show_search = False
+
+    col1, col2 = st.columns(2)
+    with col1:
+        freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
+    with col2:
+        subscriber_email = st.text_input("📧 Email to receive updates")
+
+    if freq_choice == "custom":
+        custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
+        frequency = f"every {custom_days} days"
+    else:
+        frequency = freq_choice
+
+    # Confirm subscription details
+    st.markdown("### ✅ Confirm your subscription")
+    st.info(f"""
+    **Email**: {subscriber_email or "Not provided"}  
+    **Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
+    **Keywords**: {raw_keywords if raw_keywords else "None"}  
+    **Frequency**: {frequency}
+    """)
+
+    if st.button("📩 Confirm and Subscribe"):
+        if not subscriber_email:
+            st.error("❌ Please provide an email address.")
+        elif not selected_journals:
+            st.error("❌ Please select at least one journal.")
+        else:
+            formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
+            result = store_user_subscription(
+                email=subscriber_email,
+                journals=formatted_journals,
+                keywords=raw_keywords,
+                start_date=start_date,
+                end_date=end_date,
+                frequency=frequency
+            )
+            st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
+            st.write("🛠️ Supabase insert result:", result)
