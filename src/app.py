@@ -110,22 +110,26 @@ if st.session_state.show_search:
 # --- Subscribe toggle ---
 subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
-# Toggle the search/subscribe views based on checkbox state
+# Toggle view between search and subscribe
 if subscribe and st.session_state.show_search:
     st.session_state.show_search = False
 elif not subscribe and not st.session_state.show_search:
     st.session_state.show_search = True
 
-    # Frequency + Email row
+# Subscription section only renders when checked
+if subscribe:
     col1, col2 = st.columns(2)
     with col1:
         freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
     with col2:
         subscriber_email = st.text_input("📧 Email to receive updates")
 
-    frequency = f"every {st.number_input('🔧 Custom interval (days):', min_value=1)} days" if freq_choice == "custom" else freq_choice
+    if freq_choice == "custom":
+        custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
+        frequency = f"every {custom_days} days"
+    else:
+        frequency = freq_choice
 
-    # Confirmation box
     st.markdown("### ✅ Confirm your subscription")
     st.info(f"""
 **Email**: {subscriber_email or "Not provided"}  
@@ -136,12 +140,12 @@ elif not subscribe and not st.session_state.show_search:
 
     if st.button("📩 Confirm and Subscribe"):
         if not subscriber_email:
-            st.error("❌ Please enter your email.")
+            st.error("❌ Please provide an email address.")
         elif not selected_journals:
             st.error("❌ Please select at least one journal.")
         else:
-            formatted_journals = [full_to_abbrev.get(j) for j in selected_journals if j in full_to_abbrev]
-            res = store_user_subscription(
+            formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
+            result = store_user_subscription(
                 email=subscriber_email,
                 journals=formatted_journals,
                 keywords=raw_keywords,
@@ -150,4 +154,4 @@ elif not subscribe and not st.session_state.show_search:
                 frequency=frequency
             )
             st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
-            st.write("🛠️ Supabase insert result:", res)
+            st.write("🛠️ Supabase insert result:", result)
