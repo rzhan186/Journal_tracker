@@ -13,6 +13,7 @@ import os
 from store_subscription import store_user_subscription
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from itsdangerous import URLSafeSerializer, BadSignature
 
 load_dotenv()
 
@@ -22,8 +23,35 @@ EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
+serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
+
+# Unsubscribe function
+def unsubscribe(token):
+    try:
+        # Deserialize the token to get user info
+        user_info = serializer.loads(token)
+        email = user_info['email']
+        
+        # Here you would mark the user as unsubscribed in your database
+        # Example:
+        # supabase.table("subscriptions").update({"active": False}).eq("email", email).execute()
+        
+        st.success(f"You have been successfully unsubscribed from updates for {email}!")
+    except BadSignature:
+        st.error("Invalid token. Please check your unsubscribe link.")
+
+
+
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
+
+# Check if there is a token parameter in the URL's query string
+if 'token' in st.experimental_get_query_params():
+    token = st.experimental_get_query_params()['token'][0]
+    unsubscribe(token)  # Call the unsubscribe function with the token
+else:
+    st.error("No unsubscribe token provided.")
 
 st.markdown("""
 Use this tool to search PubMed by journal, date range, and keywords.  
