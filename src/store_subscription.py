@@ -1,4 +1,5 @@
 # store_subscription.py
+
 import os
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, BadSignature, SignatureExpired
@@ -13,6 +14,32 @@ UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
+
+def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
+    """Stores a user's subscription details in the Supabase database."""
+    try:
+        data = {
+            'email': email,
+            'journals': journals,
+            'keywords': keywords,
+            'start_date': start_date,
+            'end_date': end_date,
+            'frequency': frequency,
+            'active': True,  # Assuming new subscriptions are active by default
+        }
+        
+        response = supabase.table("subscriptions").insert(data).execute()
+
+        if response.error:
+            logging.error(f"Error storing subscription: {response.error}")
+            return {"status": "error", "message": str(response.error)}
+        else:
+            logging.info(f"Subscription stored successfully for email: {email}")
+            return {"status": "success", "data": response.data}
+            
+    except Exception as e:
+        logging.exception("Error storing subscription")
+        return {"status": "error", "message": str(e)}
 
 def get_user_subscription(email):
     """Fetches a user's active subscription from the database."""
