@@ -13,6 +13,11 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SECRET_KEY = os.getenv("UNSUBSCRIBE_SECRET")  # Must be defined in your .env
 
+SECRET_KEY = os.getenv("UNSUBSCRIBE_SECRET")
+if not SECRET_KEY:
+    raise ValueError("❌ UNSUBSCRIBE_SECRET not set in .env")
+
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 serializer = URLSafeSerializer(SECRET_KEY, salt="unsubscribe")
 
