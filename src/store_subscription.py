@@ -1,8 +1,11 @@
 import os
+import logging
 from supabase import create_client
 from itsdangerous import URLSafeSerializer, BadSignature
 from dotenv import load_dotenv
-import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Load environment variables
 load_dotenv()
@@ -11,8 +14,11 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 
-if not UNSUBSCRIBE_SECRET:
-    raise ValueError("❌ UNSUBSCRIBE_SECRET not set in .env")
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS") # switch two brevo later. 
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+if not UNSUBSCRIBE_SECRET or not EMAIL_PASSWORD:
+    raise ValueError("❌ Ensure UNSUBSCRIBE_SECRET and EMAIL_PASSWORD are set in .env")
 
 # Initialize Supabase client and URL serializer
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -28,11 +34,39 @@ def generate_unsubscribe_token(email, journals, keywords, frequency):
     }
     return serializer.dumps(data)
 
+def send_confirmation_email(email, unsubscribe_token):
+    """Sends a confirmation email to the subscribed user."""
+    subject = "Subscription Confirmation"
+    unsubscribe_link = f"http://localhost:8501/unsubscribe?token={unsubscribe_token}"  # Change to your actual URL
+    body = f"""
+    Thank you for your subscription!
+
+    You will receive updates based on your preferences.
+
+    If you'd like to unsubscribe, click the link below:
+    {unsubscribe_link}
+    """
+
+    msg = MIMEMultipart()
+    msg['From'] = os.getenv("EMAIL_ADDRESS")  # Use EMAIL_ADDRESS environment variable for sender
+    msg['To'] = email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(os.getenv("EMAIL_ADDRESS"), EMAIL_PASSWORD)  # Use EMAIL_ADDRESS variable here
+            server.send_message(msg)
+            logging.info("✅ Confirmation email sent successfully to %s", email)
+    except Exception as e:
+        logging.error("❌ Failed to send email: %s", e)
+
 def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
     """Store user subscription in the Supabase database."""
     # Generate unsubscribe token
     unsubscribe_token = generate_unsubscribe_token(email, journals, keywords, frequency)
-    
+
     # Insert into Supabase
     response = supabase.table("subscriptions").insert({
         "email": email,
@@ -44,6 +78,13 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
     }).execute()
 
     logging.info("Subscription stored successfully for email: %s", email)
+
+    # Check if the insertion was successful
+    if response.status_code == 201:  # Checking for successful insertion
+        send_confirmation_email(email, unsubscribe_token)
+    else:
+        logging.error("❌ Error storing subscription: %s", response.json())
+
     return response
 
 def verify_unsubscribe_token(token):
