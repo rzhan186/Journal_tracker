@@ -36,7 +36,7 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
 
     # 4. Send confirmation email
     send_email(
-        to=email,
+        to_email=email,
         subject="✅ Subscription Confirmed",
         body=f"""Thank you for subscribing to PubMed updates!
 
