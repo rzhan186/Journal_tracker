@@ -7,11 +7,14 @@ from email.message import EmailMessage
 import time
 
 # Load secrets
-load_dotenv()
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")  
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS") # switch two brevo later. 
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
+    raise ValueError("❌ EMAIL_ADDRESS or EMAIL_PASSWORD not found in .env file")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 

@@ -14,7 +14,9 @@ from store_subscription import store_user_subscription
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-load_dotenv()
+EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
