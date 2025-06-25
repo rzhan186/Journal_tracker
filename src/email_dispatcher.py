@@ -42,23 +42,25 @@ def send_email(to_email, subject, body):
 
 def process_subscriptions():
     print("📨 Checking subscriptions...")
-    print("Storing subscription for:", email)  # Debugging line
+    try:
+        res = supabase.table("subscriptions").select("*").execute()
+        if res.error:
+            print(f"Error fetching subscriptions: {res.error}")  # Log if any error occurs while fetching
+            return
 
-    res = supabase.table("subscriptions").select("*").execute()
-    for user in res.data:
-        email = user['email']
-        journals = user['journals']
-        frequency = user['frequency']
-        body = f"""Hi {email},
+        for user in res.data:
+            email = user['email']
+            journals = user['journals']
+            frequency = user['frequency']
+            body = f"""Hi {email},
 
 This is your {frequency} update for the following journals: {journals}.
 
 🔎 This is just a test. The real search and article results would be inserted here later.
 
 – PubMed Tracker Team
-        """
-        send_email(email, f"Your {frequency} PubMed update", body)
-        print(f"✅ Sent test email to {email}")
-
-if __name__ == "__main__":
-    process_subscriptions()
+            """
+            send_email(email, f"Your {frequency} PubMed update", body)  # Send the email
+            print(f"✅ Sent test email to {email}")
+    except Exception as e:
+        print(f"Failed to process subscriptions: {str(e)}")
