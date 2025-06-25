@@ -1,3 +1,5 @@
+# store_subscription.py
+
 import os
 import logging
 from supabase import create_client
@@ -102,17 +104,16 @@ def verify_unsubscribe_token(token):
         return None
     
 def get_user_subscription(email):
-    """Fetch the user's subscription from the database based on the provided email."""
-    logging.info(f"Fetching subscription for: {email}")
     response = supabase.table("subscriptions").select("*").eq("email", email).execute()
-    
-    # Use the response status code to check for errors
-    if response.status_code != 200:
-        logging.error(f"Error fetching subscription: {response.error}")  # Log the error message if any
-        return None  # Return None on failure
 
-    # Return the first subscription found if available, else return None
-    return response.data[0] if response.data else None
+    # Check the status of the response
+    if response.status_code != 200:
+        logging.error(f"Error fetching subscription: {response.data}")  # Log the full response data
+        return None  # Return None if there’s an error
+
+    # If no error occurred, return the subscription data, if available
+    return response.data or None  # Adjust to return valid data
+
 
 def verify_unsubscribe_token(token):
     secret = os.getenv("UNSUBSCRIBE_SECRET")
