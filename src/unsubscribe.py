@@ -4,6 +4,7 @@ import streamlit as st
 from supabase import create_client
 import os
 from dotenv import load_dotenv
+import logging
 from store_subscription import verify_unsubscribe_token
 
 # Load environment variables
@@ -25,7 +26,7 @@ def handle_unsubscribe(token):
     # Check if the token is valid
     if not subscription:
         st.error("❌ Invalid or expired unsubscribe link.")
-        return  # Exit if the token is invalid
+        return
 
     # Show subscription details
     st.markdown("### You are about to unsubscribe from:")
@@ -36,12 +37,10 @@ def handle_unsubscribe(token):
     - **Frequency**: `{subscription['frequency']}`
     """)
 
-    # Button to confirm unsubscribing
     if st.button("🔕 Confirm Unsubscribe"):
-        # Update subscription status in the database to inactive
         response = supabase.table("subscriptions").update({"active": False}).eq("unsubscribe_token", token).execute()
 
-        if response.error:
+        if response.error: 
             st.error("❌ Failed to unsubscribe. Please try again later.")
         else:
             st.success("✅ You have been unsubscribed from this update.")
@@ -50,11 +49,10 @@ def handle_unsubscribe(token):
 
 # Main execution code
 if __name__ == "__main__":
-    token = st.query_params.get("token")  # Get token from URL query parameter
+    token = st.query_params.get("token")
 
-    # Check if the token is provided
     if not token:
         st.error("❌ No unsubscribe token provided.")
         st.stop()
 
-    handle_unsubscribe(token)  # Call the function to handle the unsubscribe process
+    handle_unsubscribe(token)
