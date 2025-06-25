@@ -14,7 +14,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # switch to Brevo later.
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 if not UNSUBSCRIBE_SECRET or not EMAIL_PASSWORD:
@@ -62,11 +62,11 @@ def send_confirmation_email(email, unsubscribe_token):
     except Exception as e:
         logging.error("❌ Failed to send email: %s", e)
 
-
 def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
     """Store user subscription in the Supabase database."""
     # Generate unsubscribe token
     unsubscribe_token = generate_unsubscribe_token(email, journals, keywords, frequency)
+    logging.info("Generated unsubscribe token: %s", unsubscribe_token)  # Log the generated token
 
     # Insert into Supabase
     response = supabase.table("subscriptions").insert({
@@ -86,7 +86,7 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
         logging.info("Subscription stored successfully with ID: %s", response.data[0]['id'])
     else:
         # Handle error -- if response.data is None, an error occurred
-        logging.error("❌ Error storing subscription: %s", response.error)  # we use response.error directly as a fallback if there's a response but no data.
+        logging.error("❌ Error storing subscription: %s", response.error)  # Use response.error directly as a fallback if there's a response but no data.
 
     return response
 
@@ -96,5 +96,3 @@ def verify_unsubscribe_token(token):
         return serializer.loads(token)
     except BadSignature:
         return None
-    
-
