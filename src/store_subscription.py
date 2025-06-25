@@ -1,7 +1,7 @@
 import os
 import logging
 from supabase import create_client
-from itsdangerous import URLSafeSerializer, BadSignature
+from itsdangerous import URLSafeSerializer, BadSignature, SignatureExpired
 from dotenv import load_dotenv
 import smtplib
 from email.mime.text import MIMEText
@@ -100,3 +100,22 @@ def verify_unsubscribe_token(token):
     except BadSignature:
         logging.error("❌ Invalid unsubscribe token: %s", token)
         return None
+    
+def get_user_subscription(email):
+    # This function should query your database to fetch subscription details based on the provided email
+    response = supabase.table("subscriptions").select("*").eq("email", email).execute()
+    if response.error:
+        return None
+    return response.data[0] if response.data else None  # Assuming you return the first subscription found
+
+
+def verify_unsubscribe_token(token):
+    secret = os.getenv("UNSUBSCRIBE_SECRET")
+    serializer = URLSafeSerializer(secret, salt="unsubscribe")
+    try:
+        user_info = serializer.loads(token)  # Decodes the token
+        # Fetch the user's subscription from your database (using the user's email address)
+        # Return subscription details if found
+        return get_user_subscription(user_info['email'])  # Implement get_user_subscription appropriately
+    except (BadSignature, SignatureExpired):
+        return None  # Token is invalid or expired
