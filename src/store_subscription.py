@@ -18,6 +18,9 @@ serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
     """Stores a user's subscription details in the Supabase database."""
     try:
+        # Generate the unsubscribe token
+        unsubscribe_token = serializer.dumps(email)  # Create a token for this email
+
         data = {
             'email': email,
             'journals': journals,
@@ -25,21 +28,33 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
             'start_date': start_date,
             'end_date': end_date,
             'frequency': frequency,
-            'active': True,  # Assuming new subscriptions are active by default
+            'active': True,
+            'unsubscribe_token': unsubscribe_token,  # Store the token
         }
         
         response = supabase.table("subscriptions").insert(data).execute()
+        logging.info(f"Supabase response: {response}")
 
-        if response.error:
+        if hasattr(response, 'data') and response.data is not None:
+            # Successfully stored
+            logging.info(f"Subscription stored successfully for email: {email}")
+            return {
+                "status": "success", 
+                "data": response.data,
+                "unsubscribe_token": unsubscribe_token  # Optionally return the token
+            }
+        elif hasattr(response, 'error'):
             logging.error(f"Error storing subscription: {response.error}")
             return {"status": "error", "message": str(response.error)}
         else:
-            logging.info(f"Subscription stored successfully for email: {email}")
-            return {"status": "success", "data": response.data}
-            
+            logging.error("Unexpected response structure from Supabase")
+            return {"status": "error", "message": "Unexpected response structure"}
+
     except Exception as e:
         logging.exception("Error storing subscription")
         return {"status": "error", "message": str(e)}
+    
+    
 
 def get_user_subscription(email):
     """Fetches a user's active subscription from the database."""
