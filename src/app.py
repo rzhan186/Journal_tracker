@@ -1,4 +1,5 @@
 # app.py - Streamlit Web Interface
+
 import streamlit as st
 from tracking_main import (
     fetch_pubmed_articles_by_date,
@@ -7,7 +8,6 @@ from tracking_main import (
     build_pubmed_query,
     generate_placeholder_csv
 )
-
 import pandas as pd
 import os
 from store_subscription import store_user_subscription
@@ -26,34 +26,21 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
-# Unsubscribe function
-def unsubscribe(token):
-    try:
-        # Deserialize the token to get user info
-        user_info = serializer.loads(token)
-        email = user_info['email']
-        
-        # Here you would mark the user as unsubscribed in your database
-        # Example:
-        # supabase.table("subscriptions").update({"active": False}).eq("email", email).execute()
-        
-        st.success(f"You have been successfully unsubscribed from updates for {email}!")
-    except BadSignature:
-        st.error("Invalid token. Please check your unsubscribe link.")
-
 # Streamlit app configuration
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
 
 # Check for unsubscribe token in the URL
 if 'token' in st.query_params:
-    token = st.query_params['token']  # Use st.query_params to get the token
-    # Redirect to the unsubscribe functionality
-    from unsubscribe import unsubscribe  # Make sure to import the function from unsubscribe.py
-    unsubscribe(token)  # Call the unsubscribe function with the token
+    token = st.query_params['token']  # Get the token from the query parameters
+    
+    # Call the unsubscribe handling function
+    import unsubscribe  # Make sure this imports the unsubscribe logic
+    unsubscribe.handle_unsubscribe(token)  # Call the function in unsubscribe.py
     
 else:
     # If no token is found, display the main application interface
+
     st.markdown("""
     Use this tool to search PubMed by journal, date range, and keywords.  
     You can also subscribe to automatic updates.
@@ -64,7 +51,6 @@ else:
     journal_options = list(full_to_abbrev.keys())
 
     email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
-
     selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
 
     date_option = st.selectbox("📅 Select date range:", ["Past Week", "Past Month", "Past Year", "Custom"])
