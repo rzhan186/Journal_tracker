@@ -6,7 +6,8 @@ from tracking_main import (
     format_boolean_keywords_for_pubmed,
     build_pubmed_query,
     generate_placeholder_csv
-)
+    )
+
 import pandas as pd
 import os
 from store_subscription import store_user_subscription
@@ -16,48 +17,75 @@ from itsdangerous import URLSafeSerializer, BadSignature
 
 load_dotenv()
 
-# Your existing environment variable loading here
+EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Begin Streamlit app
+UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
+serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
+
+# Unsubscribe function
+def unsubscribe(token):
+    try:
+        # Deserialize the token to get user info
+        user_info = serializer.loads(token)
+        email = user_info['email']
+        
+        # Here you would mark the user as unsubscribed in your database
+        # Example:
+        # supabase.table("subscriptions").update({"active": False}).eq("email", email).execute()
+        
+        st.success(f"You have been successfully unsubscribed from updates for {email}!")
+    except BadSignature:
+        st.error("Invalid token. Please check your unsubscribe link.")
+
+
+
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
 
-# Check for unsubscribe token
-token = st.query_params.get("token", None)  # Get the token from the query params
-
-if token:
-    # If a token is present, call unsubscribe logic
-    from unsubscribe import handle_unsubscribe  # Import the function from the unsubscribe module
-    handle_unsubscribe(token)  # Call unsubscribe handler
+# Check if there is a token parameter in the URL's query string
+if 'token' in st.query_params:
+    token = st.query_params['token']
+    unsubscribe(token)  # Call the unsubscribe function with the token
 else:
-    # Main subscription logic goes here (your existing code for subscriptions)
-    st.markdown("""
-    Use this tool to search PubMed by journal, date range, and keywords.  
-    You can also subscribe to automatic updates.
-    """)
+    st.error("No unsubscribe token provided.")
 
-    # Define the rest of your subscription UI components here...
-    journal_dict = load_pubmed_journal_abbreviations()
-    full_to_abbrev = {v: k for k, v in journal_dict.items()}
-    journal_options = list(full_to_abbrev.keys())
+st.markdown("""
+Use this tool to search PubMed by journal, date range, and keywords.  
+You can also subscribe to automatic updates.
+""")
 
-    email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
+journal_dict = load_pubmed_journal_abbreviations()
+full_to_abbrev = {v: k for k, v in journal_dict.items()}
+journal_options = list(full_to_abbrev.keys())
 
-    selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
+email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
 
-    date_option = st.selectbox("📅 Select date range:", ["Past Week", "Past Month", "Past Year", "Custom"])
-    today = datetime.today().date()
+selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
 
-    # Your existing date logic here...
+date_option = st.selectbox("📅 Select date range:", ["Past Week", "Past Month", "Past Year", "Custom"])
+today = datetime.today().date()
 
-    raw_keywords = st.text_area("❓ Enter your search keyword (Optional):", height=100,
-        help="""🔎 **Search Tips**  
-        - Use **AND**, **OR**, **NOT**  
-        - Wrap phrases in **parentheses**: *(cadmium exposure)*  
-        - Wildcards: `metagenom*`, `wom?n`
-        """)
+if date_option == "Custom":
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.text_input("Start date (YYYY-MM or YYYY-MM-DD):")
+    with col2:
+        end_date = st.text_input("End date (YYYY-MM or YYYY-MM-DD):")
+else:
+    days = {"Past Week": 7, "Past Month": 30, "Past Year": 365}[date_option]
+    start_date = str(today - timedelta(days=days))
+    end_date = str(today)
+
+raw_keywords = st.text_area("❓ Enter your search keyword (Optional):", height=100,
+    help="""🔎 **Search Tips**  
+- Use **AND**, **OR**, **NOT**  
+- Wrap phrases in **parentheses**: *(cadmium exposure)*  
+- Wildcards: `metagenom*`, `wom?n`
+""")
 
 # Toggle logic
 if "show_search" not in st.session_state:
