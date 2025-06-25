@@ -106,13 +106,13 @@ def verify_unsubscribe_token(token):
 def get_user_subscription(email):
     response = supabase.table("subscriptions").select("*").eq("email", email).execute()
 
-    # Check the status of the response
-    if response.status_code != 200:
-        logging.error(f"Error fetching subscription: {response.data}")  # Log the full response data
+    # Check if there is an error in the response
+    if response.error:  # Access the error attribute correctly
+        logging.error(f"Error fetching subscription: {response.error}")  # Log the error message
         return None  # Return None if there’s an error
 
-    # If no error occurred, return the subscription data, if available
-    return response.data or None  # Adjust to return valid data
+    # Check if there is data in the response
+    return response.data if response.data else None  # Handle empty results too
 
 
 def verify_unsubscribe_token(token):
