@@ -1,27 +1,25 @@
-# unsubscribe.py
-from itsdangerous import URLSafeSerializer, BadSignature
-from supabase import create_client, Client
-from dotenv import load_dotenv
 import os
-import streamlit as st
+from supabase import create_client
+from itsdangerous import URLSafeSerializer, BadSignature
+from dotenv import load_dotenv
+import logging
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-SECRET_KEY = os.getenv("UNSUBSCRIBE_SECRET")  # Must be defined in your .env
+UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 
-SECRET_KEY = os.getenv("UNSUBSCRIBE_SECRET")
-if not SECRET_KEY:
+if not UNSUBSCRIBE_SECRET:
     raise ValueError("❌ UNSUBSCRIBE_SECRET not set in .env")
 
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-serializer = URLSafeSerializer(SECRET_KEY, salt="unsubscribe")
+# Initialize Supabase client and URL serializer
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
 def generate_unsubscribe_token(email, journals, keywords, frequency):
+    """Generates a secure unsubscribe token for the user."""
     data = {
         "email": email,
         "journals": journals,
@@ -30,51 +28,27 @@ def generate_unsubscribe_token(email, journals, keywords, frequency):
     }
     return serializer.dumps(data)
 
+def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
+    """Store user subscription in the Supabase database."""
+    # Generate unsubscribe token
+    unsubscribe_token = generate_unsubscribe_token(email, journals, keywords, frequency)
+    
+    # Insert into Supabase
+    response = supabase.table("subscriptions").insert({
+        "email": email,
+        "journals": journals,
+        "keywords": keywords,
+        "frequency": frequency,
+        "unsubscribe_token": unsubscribe_token,  # Save the token
+        "active": True  # Active subscription status
+    }).execute()
+
+    logging.info("Subscription stored successfully for email: %s", email)
+    return response
+
 def verify_unsubscribe_token(token):
+    """Verifies the provided unsubscribe token."""
     try:
         return serializer.loads(token)
     except BadSignature:
         return None
-
-def delete_subscription(subscription):
-    response = supabase.table("subscriptions") \
-        .delete() \
-        .match({
-            "email": subscription["email"],
-            "journals": subscription["journals"],
-            "keywords": subscription["keywords"],
-            "frequency": subscription["frequency"]
-        }) \
-        .execute()
-    return response
-
-# Streamlit App Interface
-st.set_page_config(page_title="Unsubscribe", layout="centered")
-st.title("🛑 Unsubscribe from PubMed Alerts")
-
-token = st.query_params.get("token")
-
-if not token:
-    st.error("❌ No unsubscribe token provided.")
-    st.stop()
-
-subscription = verify_unsubscribe_token(token)
-
-if not subscription:
-    st.error("❌ Invalid or expired unsubscribe link.")
-    st.stop()
-
-st.write("You're about to unsubscribe from the following:")
-st.markdown(f"""
-- **Email**: {subscription['email']}
-- **Journals**: {', '.join(subscription['journals'])}
-- **Keywords**: {subscription['keywords'] or "None"}
-- **Frequency**: {subscription['frequency']}
-""")
-
-if st.button("✅ Confirm Unsubscribe"):
-    result = delete_subscription(subscription)
-    st.success("✅ You have been unsubscribed.")
-    st.write("📭 You will no longer receive updates for this configuration.")
-else:
-    st.info("Click the button above to complete the unsubscribe process.")
