@@ -154,7 +154,6 @@ if subscribe:
                 start_date=start_date,
                 end_date=end_date,
                 frequency=frequency,
-                csv_bytes=csv_bytes  # ✅ Pass into function
             )
             st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
             st.write("🛠️ Supabase insert result:", result)
