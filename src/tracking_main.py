@@ -347,6 +347,21 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
     print("😊 All articles have been fetched successfully.")
     return papers
 
+
+######################################################################
+# Create placeholder CSV in case no search was run
+def generate_placeholder_csv():
+    placeholder_data = {
+        "Title": ["No search performed yet"],
+        "Authors": ["N/A"],
+        "Journal": ["N/A"],
+        "Publication Date": [str(datetime.today().date())],
+        "Abstract": ["This is a placeholder. Run a search to get real results."]
+    }
+    df_placeholder = pd.DataFrame(placeholder_data)
+    return df_placeholder.to_csv(index=False).encode("utf-8")
+
+
 ######################################################################
 # function to export the article list to csv file
 

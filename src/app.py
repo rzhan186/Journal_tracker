@@ -5,7 +5,9 @@ from tracking_main import (
     load_pubmed_journal_abbreviations,
     format_boolean_keywords_for_pubmed,
     build_pubmed_query,
-)
+    generate_placeholder_csv
+    )
+
 import pandas as pd
 import os
 from store_subscription import store_user_subscription
@@ -139,7 +141,7 @@ if subscribe:
             st.error("❌ Please select at least one journal.")
         else:
             formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
-            csv_bytes = df.to_csv(index=False).encode("utf-8")  # ✅ New line to generate CSV bytes
+            csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() else generate_placeholder_csv()
 
             result = store_user_subscription(
                 email=subscriber_email,
