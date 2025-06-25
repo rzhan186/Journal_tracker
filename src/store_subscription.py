@@ -42,7 +42,7 @@ def generate_unsubscribe_token(email, journals, keywords, frequency):
 def send_confirmation_email(email, unsubscribe_token):
     """Sends a confirmation email to the subscribed user."""
     subject = "Subscription Confirmation"
-    unsubscribe_link = f"https://journaltracker.streamlit.app/unsubscribe/?token={unsubscribe_token}"  # Use your deployed app URL
+    unsubscribe_link = f"https://journaltracker.streamlit.app/?token={unsubscribe_token}"  # Use your deployed app URL
     body = f"""
     Thank you for your subscription!
 
