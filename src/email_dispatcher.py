@@ -45,16 +45,22 @@ def send_email(to_email, subject, body):
         logging.error(f"Failed to send email to {to_email}: {str(e)}")  # Improved error logging
         raise  # Reraise exception for further handling if needed
 
-def process_subscriptions():
+
+# THe code below works, don't change it for now
+
+def process_subscriptions(): 
     """Processes subscriptions by fetching from the Supabase and sending emails."""
     logging.info("📨 Checking subscriptions...")
     try:
+        # Execute the query to retrieve subscriptions
         res = supabase.table("subscriptions").select("*").execute()
-        
-        if res.error:
-            logging.error(f"Error fetching subscriptions: {res.error}")  # Logging any fetch errors
-            return
 
+        # Check if the response is successful
+        if not res.data:
+            logging.warning("No subscriptions found.")  # Log if no data is returned
+            return
+        
+        # Process each subscription
         for user in res.data:
             email = user['email']
             journals = user['journals']
