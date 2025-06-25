@@ -47,8 +47,8 @@ st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
 
 # Check if there is a token parameter in the URL's query string
-if 'token' in st.experimental_get_query_params():
-    token = st.experimental_get_query_params()['token'][0]
+if 'token' in st.query_params:
+    token = st.query_params['token']
     unsubscribe(token)  # Call the unsubscribe function with the token
 else:
     st.error("No unsubscribe token provided.")
