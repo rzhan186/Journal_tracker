@@ -48,7 +48,10 @@ st.title("📚 PubMed Journal Tracker")
 # Check for unsubscribe token in the URL
 if 'token' in st.query_params:
     token = st.query_params['token']  # Use st.query_params to get the token
+    # Redirect to the unsubscribe functionality
+    from unsubscribe import unsubscribe  # Make sure to import the function from unsubscribe.py
     unsubscribe(token)  # Call the unsubscribe function with the token
+    
 else:
     # If no token is found, display the main application interface
     st.markdown("""
