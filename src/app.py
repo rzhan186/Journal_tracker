@@ -11,6 +11,8 @@ from tracking_main import (
 import pandas as pd
 import os
 from store_subscription import store_user_subscription
+from email_dispatcher import process_subscriptions
+
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, BadSignature
@@ -128,43 +130,53 @@ else:
     subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
     # Subscription section only renders when checked
-    if subscribe:
-        col1, col2 = st.columns(2)
-        with col1:
-            freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
-        with col2:
-            subscriber_email = st.text_input("📧 Email to receive updates")
+    # --- Subscribe toggle ---
+subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
-        if freq_choice == "custom":
-            custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
-            frequency = f"every {custom_days} days"
+# Subscription section only renders when checked
+if subscribe:
+    col1, col2 = st.columns(2)
+    with col1:
+        freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
+    with col2:
+        subscriber_email = st.text_input("📧 Email to receive updates")
+
+    if freq_choice == "custom":
+        custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
+        frequency = f"every {custom_days} days"
+    else:
+        frequency = freq_choice
+
+    st.markdown("✅ Confirm your subscription")
+    st.info(f"""
+            **Email**: {subscriber_email or "Not provided"}  
+            **Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
+            **Keywords**: {raw_keywords if raw_keywords else "None"}  
+            **Frequency**: {frequency}
+            """)
+
+    if st.button("📩 Confirm and Subscribe"):
+        if not subscriber_email:
+            st.error("❌ Please provide an email address.")
+        elif not selected_journals:
+            st.error("❌ Please select at least one journal.")
         else:
-            frequency = freq_choice
+            formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
+            csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() else generate_placeholder_csv()
 
-        st.markdown("✅ Confirm your subscription")
-        st.info(f"""
-                **Email**: {subscriber_email or "Not provided"}  
-                **Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
-                **Keywords**: {raw_keywords if raw_keywords else "None"}  
-                **Frequency**: {frequency}
-                """)
+            # Store the user subscription
+            result = store_user_subscription(
+                email=subscriber_email,
+                journals=formatted_journals,
+                keywords=raw_keywords,
+                start_date=start_date,
+                end_date=end_date,
+                frequency=frequency,
+            )
+            
+            # Notify the user about the subscription success
+            st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
+            st.write("🛠️ Supabase insert result:", result)
 
-        if st.button("📩 Confirm and Subscribe"):
-            if not subscriber_email:
-                st.error("❌ Please provide an email address.")
-            elif not selected_journals:
-                st.error("❌ Please select at least one journal.")
-            else:
-                formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
-                csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() else generate_placeholder_csv()
-
-                result = store_user_subscription(
-                    email=subscriber_email,
-                    journals=formatted_journals,
-                    keywords=raw_keywords,
-                    start_date=start_date,
-                    end_date=end_date,
-                    frequency=frequency,
-                )
-                st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
-                st.write("🛠️ Supabase insert result:", result)
+            # Call the email dispatcher to send a confirmation email
+            process_subscriptions()  # Call the function to process and send emails
