@@ -24,6 +24,9 @@ if not UNSUBSCRIBE_SECRET or not EMAIL_PASSWORD:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
 def generate_unsubscribe_token(email, journals, keywords, frequency):
     """Generates a secure unsubscribe token for the user."""
     data = {
@@ -32,7 +35,9 @@ def generate_unsubscribe_token(email, journals, keywords, frequency):
         "keywords": keywords,
         "frequency": frequency,
     }
-    return serializer.dumps(data)
+    token = serializer.dumps(data)
+    logging.info("Generated unsubscribe token for email: %s", email)
+    return token
 
 def send_confirmation_email(email, unsubscribe_token):
     """Sends a confirmation email to the subscribed user."""
@@ -60,15 +65,15 @@ def send_confirmation_email(email, unsubscribe_token):
             server.send_message(msg)
             logging.info("✅ Confirmation email sent successfully to %s", email)
     except Exception as e:
-        logging.error("❌ Failed to send email: %s", e)
+        logging.error("❌ Failed to send email to %s: %s", email, e)
 
 def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
     """Store user subscription in the Supabase database."""
     # Generate unsubscribe token
     unsubscribe_token = generate_unsubscribe_token(email, journals, keywords, frequency)
-    logging.info("Generated unsubscribe token: %s", unsubscribe_token)  # Log the generated token
 
     # Insert into Supabase
+    logging.info("Storing subscription for email: %s", email)
     response = supabase.table("subscriptions").insert({
         "email": email,
         "journals": journals,
@@ -78,15 +83,13 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
         "active": True  # Active subscription status
     }).execute()
 
-    logging.info("Attempting to store subscription for email: %s", email)
-
     # Checking for insertion success and handling response
     if response.data:  # Checking if we got data back, which means success
         send_confirmation_email(email, unsubscribe_token)
-        logging.info("Subscription stored successfully with ID: %s", response.data[0]['id'])
+        logging.info("Subscription stored successfully for email: %s with ID: %s", email, response.data[0]['id'])
     else:
         # Handle error -- if response.data is None, an error occurred
-        logging.error("❌ Error storing subscription: %s", response.error)  # Use response.error directly as a fallback if there's a response but no data.
+        logging.error("❌ Error storing subscription for email %s: %s", email, response.error)  # Log the error message
 
     return response
 
@@ -95,4 +98,5 @@ def verify_unsubscribe_token(token):
     try:
         return serializer.loads(token)
     except BadSignature:
+        logging.error("❌ Invalid unsubscribe token: %s", token)
         return None

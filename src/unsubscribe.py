@@ -3,6 +3,7 @@ from supabase import create_client
 import os
 from dotenv import load_dotenv
 from store_subscription import verify_unsubscribe_token
+import logging
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +11,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 st.set_page_config(page_title="Unsubscribe | PubMed Tracker")
 st.title("🛑 Unsubscribe from PubMed Alerts")
@@ -39,7 +43,14 @@ st.markdown(f"""
 
 if st.button("🔕 Confirm Unsubscribe"):
     # Update the subscription status in the database to inactive
-    supabase.table("subscriptions").update({"active": False}).eq("unsubscribe_token", token).execute()
-    st.success("✅ You have been unsubscribed from this update.")
+    response = supabase.table("subscriptions").update({"active": False}).eq("unsubscribe_token", token).execute()
+    
+    # Log the subscription update response
+    logging.info("Unsubscription attempt for token: %s, Response: %s", token, response)
+
+    if response.error:
+        st.error("❌ Failed to unsubscribe. Please try again later.")
+    else:
+        st.success("✅ You have been unsubscribed from this update.")
 else:
     st.info("Click the button above to complete the unsubscribe process.")
