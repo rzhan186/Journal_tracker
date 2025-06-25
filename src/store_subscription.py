@@ -1,50 +1,75 @@
+# unsubscribe.py
+from itsdangerous import URLSafeSerializer, BadSignature
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from email_dispatcher import send_email
 import os
-from datetime import datetime
+import streamlit as st
 
-# Load variables from .env file
+# Load environment variables
 load_dotenv()
 
+# Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SECRET_KEY = os.getenv("UNSUBSCRIBE_SECRET")  # Must be defined in your .env
 
-# Supabase project credentials
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+serializer = URLSafeSerializer(SECRET_KEY, salt="unsubscribe")
 
-def store_user_subscription(email, journals, keywords, start_date, end_date, frequency, csv_bytes):
-    # 1. Store metadata in Supabase DB
+def generate_unsubscribe_token(email, journals, keywords, frequency):
     data = {
         "email": email,
         "journals": journals,
         "keywords": keywords,
-        "start_date": start_date,
-        "end_date": end_date,
-        "frequency": frequency
+        "frequency": frequency,
     }
-    supabase.table("subscriptions").insert(data).execute()
+    return serializer.dumps(data)
 
-    # 2. Upload CSV file to Supabase Storage
-    safe_time = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filename = f"{email}_{safe_time}.csv"
-    supabase.storage.from_("subscription-files").upload(filename, csv_bytes, {"content-type": "text/csv"})
+def verify_unsubscribe_token(token):
+    try:
+        return serializer.loads(token)
+    except BadSignature:
+        return None
 
-    # 3. Get public URL or signed URL
-    signed_url_data = supabase.storage.from_("subscription-files").create_signed_url(filename, 86400)
-    signed_url = signed_url_data.get("signedURL")   
+def delete_subscription(subscription):
+    response = supabase.table("subscriptions") \
+        .delete() \
+        .match({
+            "email": subscription["email"],
+            "journals": subscription["journals"],
+            "keywords": subscription["keywords"],
+            "frequency": subscription["frequency"]
+        }) \
+        .execute()
+    return response
 
-    # 4. Send confirmation email
-    send_email(
-        to_email=email,
-        subject="✅ Subscription Confirmed",
-        body=f"""Thank you for subscribing to PubMed updates!
+# Streamlit App Interface
+st.set_page_config(page_title="Unsubscribe", layout="centered")
+st.title("🛑 Unsubscribe from PubMed Alerts")
 
-Journals: {', '.join(journals)}
-Keywords: {keywords}
-Frequency: {frequency}
+token = st.query_params.get("token")
 
-📥 Download your search results: {signed_url}
+if not token:
+    st.error("❌ No unsubscribe token provided.")
+    st.stop()
+
+subscription = verify_unsubscribe_token(token)
+
+if not subscription:
+    st.error("❌ Invalid or expired unsubscribe link.")
+    st.stop()
+
+st.write("You're about to unsubscribe from the following:")
+st.markdown(f"""
+- **Email**: {subscription['email']}
+- **Journals**: {', '.join(subscription['journals'])}
+- **Keywords**: {subscription['keywords'] or "None"}
+- **Frequency**: {subscription['frequency']}
 """)
 
-    return {"status": "success", "url": signed_url}
+if st.button("✅ Confirm Unsubscribe"):
+    result = delete_subscription(subscription)
+    st.success("✅ You have been unsubscribed.")
+    st.write("📭 You will no longer receive updates for this configuration.")
+else:
+    st.info("Click the button above to complete the unsubscribe process.")
