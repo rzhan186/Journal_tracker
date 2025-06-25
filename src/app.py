@@ -35,8 +35,8 @@ if 'token' in st.query_params:
     token = st.query_params['token']  # Get the token from the query parameters
     
     # Call the unsubscribe handling function
-    import unsubscribe  # Make sure this imports the unsubscribe logic
-    unsubscribe.handle_unsubscribe(token)  # Call the function in unsubscribe.py
+    from unsubscribe import handle_unsubscribe  # Make sure this imports the unsubscribe logic
+    handle_unsubscribe(token)  # Call the function in unsubscribe.py
     
 else:
     # If no token is found, display the main application interface
