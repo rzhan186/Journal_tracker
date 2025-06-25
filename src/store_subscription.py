@@ -14,7 +14,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS") # switch two brevo later. 
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # switch to Brevo later.
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 if not UNSUBSCRIBE_SECRET or not EMAIL_PASSWORD:
@@ -48,7 +48,7 @@ def send_confirmation_email(email, unsubscribe_token):
     """
 
     msg = MIMEMultipart()
-    msg['From'] = os.getenv("EMAIL_ADDRESS")
+    msg['From'] = EMAIL_ADDRESS
     msg['To'] = email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
@@ -56,7 +56,7 @@ def send_confirmation_email(email, unsubscribe_token):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(os.getenv("EMAIL_ADDRESS"), EMAIL_PASSWORD)
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.send_message(msg)
             logging.info("✅ Confirmation email sent successfully to %s", email)
     except Exception as e:
@@ -80,11 +80,12 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
     logging.info("Attempting to store subscription for email: %s", email)
 
     # Checking for insertion success and handling response
-    if response.error:  # Check for errors in the response
-        logging.error("❌ Error storing subscription: %s", response.error.message)
-    else:
+    if response.data:  # Checking if we got data back, which means success
         send_confirmation_email(email, unsubscribe_token)
         logging.info("Subscription stored successfully with ID: %s", response.data[0]['id'])
+    else:
+        # Handle error -- if response.data is None, an error occurred
+        logging.error("❌ Error storing subscription: %s", response.error)  # we use response.error directly as a fallback if there's a response but no data.
 
     return response
 
