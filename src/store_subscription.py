@@ -2,7 +2,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from email_dispatcher import send_email
 import os
-import datetime
+from datetime import datetime
 
 # Load variables from .env file
 load_dotenv()
