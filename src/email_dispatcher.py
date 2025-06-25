@@ -7,6 +7,7 @@ from email.message import EmailMessage
 import time
 
 # Load secrets
+load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")  
@@ -19,18 +20,29 @@ if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def send_email(to_email, subject, body):
-    msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = EMAIL_ADDRESS
-    msg['To'] = to_email
-    msg.set_content(body)
+    try:
+        if not to_email:
+            raise ValueError("Recipient email cannot be None.")
+            
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = to_email
+        msg.set_content(body)
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-        smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        smtp.send_message(msg)
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        print(f"Email sent to {to_email} successfully.")  # Debugging log
+         
+    except Exception as e:
+        print(f"Failed to send email to {to_email}: {str(e)}")
+        raise  # Optional: Reraise the exception for upper-level handling
 
 def process_subscriptions():
     print("📨 Checking subscriptions...")
+    print("Storing subscription for:", email)  # Debugging line
+
     res = supabase.table("subscriptions").select("*").execute()
     for user in res.data:
         email = user['email']
