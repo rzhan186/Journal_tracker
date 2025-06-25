@@ -37,7 +37,7 @@ def generate_unsubscribe_token(email, journals, keywords, frequency):
 def send_confirmation_email(email, unsubscribe_token):
     """Sends a confirmation email to the subscribed user."""
     subject = "Subscription Confirmation"
-    unsubscribe_link = f"https://journaltracker.streamlit.app/unsubscribe?token={unsubscribe_token}"  # Use your deployed app URL
+    unsubscribe_link = f"https://journaltracker.streamlit.app/?token={unsubscribe_token}"  # Use your deployed app URL
     body = f"""
     Thank you for your subscription!
 
@@ -61,7 +61,7 @@ def send_confirmation_email(email, unsubscribe_token):
             logging.info("✅ Confirmation email sent successfully to %s", email)
     except Exception as e:
         logging.error("❌ Failed to send email: %s", e)
-        
+
 
 def store_user_subscription(email, journals, keywords, start_date, end_date, frequency):
     """Store user subscription in the Supabase database."""
