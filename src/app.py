@@ -41,14 +41,12 @@ def unsubscribe(token):
     except BadSignature:
         st.error("Invalid token. Please check your unsubscribe link.")
 
-
-
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
 
 # Check if there is a token parameter in the URL's query string
 if 'token' in st.query_params:
-    token = st.query_params['token']
+    token = st.query_params['token']  # Use st.query_params to get the token
     unsubscribe(token)  # Call the unsubscribe function with the token
 else:
     st.error("No unsubscribe token provided.")
