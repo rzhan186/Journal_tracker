@@ -102,12 +102,14 @@ def verify_unsubscribe_token(token):
         return None
     
 def get_user_subscription(email):
-    # This function should query your database to fetch subscription details based on the provided email
+    logging.info(f"Fetching subscription for: {email}")
     response = supabase.table("subscriptions").select("*").eq("email", email).execute()
-    if response.error:
+    
+    if response.get("error"):
+        logging.error(f"Error fetching subscription: {response['error']}")
         return None
-    return response.data[0] if response.data else None  # Assuming you return the first subscription found
 
+    return response.data[0] if response.data else None
 
 def verify_unsubscribe_token(token):
     secret = os.getenv("UNSUBSCRIBE_SECRET")
