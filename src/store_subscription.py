@@ -48,7 +48,7 @@ def send_confirmation_email(email, unsubscribe_token):
     """
 
     msg = MIMEMultipart()
-    msg['From'] = os.getenv("EMAIL_ADDRESS")  # Use EMAIL_ADDRESS environment variable for sender
+    msg['From'] = os.getenv("EMAIL_ADDRESS")
     msg['To'] = email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
@@ -56,7 +56,7 @@ def send_confirmation_email(email, unsubscribe_token):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(os.getenv("EMAIL_ADDRESS"), EMAIL_PASSWORD)  # Use EMAIL_ADDRESS variable here
+            server.login(os.getenv("EMAIL_ADDRESS"), EMAIL_PASSWORD)
             server.send_message(msg)
             logging.info("✅ Confirmation email sent successfully to %s", email)
     except Exception as e:
@@ -77,13 +77,14 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
         "active": True  # Active subscription status
     }).execute()
 
-    logging.info("Subscription stored successfully for email: %s", email)
+    logging.info("Attempting to store subscription for email: %s", email)
 
-    # Check if the insertion was successful
-    if response.status_code == 201:  # Checking for successful insertion
-        send_confirmation_email(email, unsubscribe_token)
+    # Checking for insertion success and handling response
+    if response.error:  # Check for errors in the response
+        logging.error("❌ Error storing subscription: %s", response.error.message)
     else:
-        logging.error("❌ Error storing subscription: %s", response.json())
+        send_confirmation_email(email, unsubscribe_token)
+        logging.info("Subscription stored successfully with ID: %s", response.data[0]['id'])
 
     return response
 
