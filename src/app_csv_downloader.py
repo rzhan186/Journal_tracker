@@ -1,4 +1,4 @@
-# 
+# app_csv_downloader.py
 
 import streamlit as st
 from datetime import datetime
@@ -40,9 +40,9 @@ def handle_download(token):
             file_size = len(csv_data) / 1024  # Size in KB
             st.caption(f"📄 File size: {file_size:.1f} KB | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
-            # Option to return to main app
-            if st.button("🔙 Return to Main App"):
-                st.switch_page("app.py")  # Adjust if your main file has a different name
+            # Provide clear navigation
+            st.markdown("---")
+            st.info("🔙 **Return to Main App:** [Click here to go back to search](https://journaltracker.streamlit.app)")
                 
         else:
             # Token invalid or expired
@@ -60,22 +60,19 @@ def handle_download(token):
             """)
             
             # Provide navigation back to main app
-            if st.button("🔍 Go to Search Page"):
-                st.switch_page("app.py")  # Adjust if your main file has a different name
+            st.markdown("---")
+            st.info("🔍 **Go to Search:** [Click here to start a new search](https://journaltracker.streamlit.app)")
                 
     except Exception as e:
         # Handle any unexpected errors
         st.error("❌ **Download Error**")
         st.markdown(f"""
         An unexpected error occurred while processing your download:
+        `{str(e)}`
                     
         Please try again or contact support if the issue persists.
         """)
-
-# Navigation option
-if st.button("🏠 Return to Journal Tracker"):
-    st.switch_page("app.py")
-
-# Footer with additional info
-st.markdown("---")
-st.caption("🔐 All downloads are secured with time-limited tokens for your privacy and security.")
+        
+    # Footer with additional info
+    st.markdown("---")
+    st.caption("🔐 All downloads are secured with time-limited tokens for your privacy and security.")
