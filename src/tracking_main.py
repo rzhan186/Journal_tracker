@@ -11,7 +11,6 @@ import requests
 import json
 import difflib
 
-
 # Set Entrez email
 Entrez.email = "rzhan186@gmail.com"
 
@@ -349,6 +348,146 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
     print("😊 All articles have been fetched successfully.")
     return papers
 
+######################################################################
+# function to allow fetch preprints to use the same keyword logic as pubmed
+
+def compile_keyword_filter(raw_query):
+    """
+    Compiles a Boolean keyword filter supporting AND, OR, NOT, parentheses, and wildcards (*, ?).
+    Returns a function that takes text input and returns True if it matches the query.
+    """
+
+    def tokenize(query):
+        # Tokenizes Boolean expressions including parentheses, operators, wildcards, and quoted phrases
+        return re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', query, flags=re.IGNORECASE)
+
+    def to_python_expr(tokens):
+        # Converts tokens to a Python expression using regex matching
+        expr = ""
+        for token in tokens:
+            upper = token.upper()
+            if upper in {"AND", "OR", "NOT"}:
+                expr += f" {upper.lower()} "
+            elif token == "(" or token == ")":
+                expr += token
+            else:
+                # Handle phrases and wildcards
+                token = token.strip('"')
+                regex = token.replace("?", ".").replace("*", ".*")
+                expr += f'(re.search(r"{regex}", text, re.IGNORECASE) is not None)'
+        return expr
+
+    tokens = tokenize(raw_query)
+    expr = to_python_expr(tokens)
+
+    def matcher(text):
+        try:
+            return eval(expr, {"re": re, "text": text})
+        except Exception:
+            return False
+
+    return matcher
+
+
+######################################################################
+# function to fetch articles from preprints
+import xml.etree.ElementTree as ET
+
+def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=None, max_results=50):
+    """
+    Fetches preprints from bioRxiv, medRxiv, or arXiv in a standardized format.
+    
+    Args:
+        server (str): 'biorxiv', 'medrxiv', or 'arxiv'.
+        start_date (str): Start date in YYYY-MM-DD (bioRxiv/medRxiv only).
+        end_date (str): End date in YYYY-MM-DD (bioRxiv/medRxiv only).
+        keywords (str): Boolean keyword query (AND, OR, NOT, *, ?, parentheses).
+        max_results (int): Limit for arXiv results.
+
+    Returns:
+        List[Dict]: Each with keys Journal, Title, Abstract, Publication Date, DOI.
+    """
+    if server not in ["biorxiv", "medrxiv", "arxiv"]:
+        print("❌ Invalid server. Choose from 'biorxiv', 'medrxiv', or 'arxiv'.")
+        return []
+
+    matcher = compile_keyword_filter(keywords) if keywords else lambda x: True
+    results = []
+
+    if server == "arxiv":
+        if not keywords:
+            print("⚠️ arXiv requires keywords.")
+            return []
+        base_url = "http://export.arxiv.org/api/query"
+        query = f"all:{keywords}"
+        params = {
+            "search_query": query,
+            "start": 0,
+            "max_results": max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending"
+        }
+
+        try:
+            response = requests.get(base_url, params=params, timeout=10)
+            response.raise_for_status()
+
+            root = ET.fromstring(response.text)
+            ns = {'atom': 'http://www.w3.org/2005/Atom'}
+
+            for entry in root.findall('atom:entry', ns):
+                title = entry.find('atom:title', ns).text.strip()
+                summary = entry.find('atom:summary', ns).text.strip()
+                published = entry.find('atom:published', ns).text.strip()
+                doi = None
+                for link in entry.findall('atom:link', ns):
+                    if 'doi.org' in link.get('href', ''):
+                        doi = link.get('href')
+                        break
+
+                combined_text = f"{title} {summary}"
+                if matcher(combined_text):
+                    results.append({
+                        "Journal": "arXiv",
+                        "Publication Date": published[:10],
+                        "Title": title,
+                        "Abstract": summary,
+                        "DOI": doi or "N/A"
+                    })
+        except Exception as e:
+            print(f"⚠️ Error fetching from arXiv: {e}")
+            return []
+
+    else:
+        if not (start_date and end_date):
+            print("⚠️ Start and end dates are required for bioRxiv/medRxiv.")
+            return []
+
+        url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            for item in data.get("collection", []):
+                title = item.get("title", "")
+                abstract = item.get("abstract", "")
+                combined_text = f"{title} {abstract}"
+                if matcher(combined_text):
+                    results.append({
+                        "Journal": server,
+                        "Publication Date": item["date"],
+                        "Title": title,
+                        "Abstract": abstract,
+                        "DOI": item.get("doi", "N/A")
+                    })
+        except Exception as e:
+            print(f"⚠️ Error fetching from {server}: {e}")
+            return []
+
+    print(f"✅ Fetched {len(results)} preprints from {server}")
+    return results
+
 
 ######################################################################
 # Create placeholder CSV in case no search was run
@@ -381,9 +520,9 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
     print(f"📁 Fetched {len(df)} articles and saved to {filename}")
 
 
+
+
 # More update update:
     # prompty the user to enter an email address ➡️ implement this at the end
     # prompt the user to indicate an export directory, export to current directory by defacult
     # output publication date not aligned with the journal publication date. 
-
-# implement a search by keyword function
