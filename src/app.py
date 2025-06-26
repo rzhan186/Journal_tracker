@@ -209,11 +209,12 @@
 import streamlit as st
 from tracking_main import (
     fetch_pubmed_articles_by_date,
+    fetch_preprints,
     load_pubmed_journal_abbreviations,
     format_boolean_keywords_for_pubmed,
     build_pubmed_query,
-    generate_placeholder_csv
-    #merge_and_highlight_articles,
+    generate_placeholder_csv,
+    merge_and_highlight_articles
     #export_fetched_articles_as_csv
 )
 import pandas as pd
@@ -303,41 +304,49 @@ else:
                 st.error("❌ Invalid journal names.")
                 st.stop()
 
-            # Validate keywords
-            keywords = None
             if raw_keywords.strip():
                 if raw_keywords.count("(") != raw_keywords.count(")"):
                     st.warning("⚠️ Unbalanced parentheses.")
                     st.stop()
                 keywords = format_boolean_keywords_for_pubmed(raw_keywords.strip())
+            else:
+                keywords = None
 
-            st.caption("🔍 Formatted PubMed keyword logic:")
-            st.code(keywords if keywords else "(None)", language="none")
+            if keywords:
+                query_preview = build_pubmed_query(
+                    journal=selected_journals[0],
+                    start_date=start_date,
+                    end_date=end_date,
+                    keywords=keywords
+                )
+                st.caption("📄 Final PubMed query (1st journal shown):")
+                st.code(query_preview, language="none")
 
-            query_preview = build_pubmed_query(
-                journal=selected_journals[0], start_date=start_date, end_date=end_date, keywords=keywords
-            )
-            st.caption("📄 Final PubMed query (1st journal shown):")
-            st.code(query_preview, language="none")
+            all_articles = []
+            for journal in selected_journals:
+                articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
+                for article in articles:
+                    article["Journal"] = journal
+                all_articles.extend(articles)
 
-            with st.status("🔍 Searching PubMed...", expanded=True) as status:
-                all_articles = []
-                for i, journal in enumerate(selected_journals):
-                    st.write(f"🔎 Searching: **{journal}** ({i+1}/{len(selected_journals)})")
-                    articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
-                    for article in articles:
-                        article["Journal"] = journal
-                    all_articles.extend(articles)
-
-                if all_articles:
-                    status.update(label=f"✅ Found {len(all_articles)} article(s).", state="complete")
-                else:
-                    status.update(label="⚠️ No articles found.", state="error")
+            if include_preprints:
+                for preprint_server in ["biorxiv", "medrxiv"]:
+                    preprint_articles = fetch_preprints(
+                        server=preprint_server,
+                        start_date=start_date,
+                        end_date=end_date,
+                        keywords=raw_keywords
+                    )
+                    all_articles.extend(preprint_articles)
 
             if all_articles:
-                df = pd.DataFrame(all_articles)
-                st.download_button("📥 Download CSV", df.to_csv(index=False).encode("utf-8"),
-                                   file_name="PubMed_Results.csv", mime="text/csv")
+                merged = merge_and_highlight_articles(all_articles, [], raw_keywords)
+                df = pd.DataFrame(merged)
+                st.success(f"✅ Found {len(df)} articles.")
+                st.download_button("📥 Download CSV", df.to_csv(index=False).encode("utf-8"), file_name="Combined_Results.csv")
+            else:
+                st.warning("⚠️ No articles found.")
+
         except Exception as e:
             st.error(f"❌ Error: {e}")
 

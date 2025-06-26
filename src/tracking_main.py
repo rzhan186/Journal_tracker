@@ -503,6 +503,34 @@ def generate_placeholder_csv():
     return df_placeholder.to_csv(index=False).encode("utf-8")
 
 
+
+######################################################################
+# add a function to merge pubmed and preprints output then highlight keywords
+
+def merge_and_highlight_articles(articles, fields_to_highlight=["Title", "Abstract"], raw_keywords=""):
+    """Highlights keywords in articles' titles and abstracts."""
+    def highlight(text, terms):
+        for term in sorted(terms, key=len, reverse=True):  # longest terms first
+            pattern = re.compile(re.escape(term), re.IGNORECASE)
+            text = pattern.sub(lambda m: f"**{m.group(0)}**", text)
+        return text
+
+    if not raw_keywords:
+        return articles
+
+    # Extract keywords while preserving operators
+    terms = re.findall(r'"[^"]+"|\b\w+\*?\??\b', raw_keywords)
+    terms = [term.strip('"') for term in terms if term.upper() not in ["AND", "OR", "NOT"]]
+
+    for article in articles:
+        for field in fields_to_highlight:
+            if field in article and isinstance(article[field], str):
+                article[field] = highlight(article[field], terms)
+
+    return articles
+
+
+
 ######################################################################
 # function to export the article list to csv file
 
