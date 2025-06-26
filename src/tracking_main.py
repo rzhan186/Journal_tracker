@@ -351,43 +351,6 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
 ######################################################################
 # function to allow fetch preprints to use the same keyword logic as pubmed
 
-# def compile_keyword_filter(raw_query):
-#     """
-#     Compiles a Boolean keyword filter supporting AND, OR, NOT, parentheses, and wildcards (*, ?).
-#     Returns a function that takes text input and returns True if it matches the query.
-#     """
-
-#     def tokenize(query):
-#         # Tokenizes Boolean expressions including parentheses, operators, wildcards, and quoted phrases
-#         return re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', query, flags=re.IGNORECASE)
-
-#     def to_python_expr(tokens):
-#         # Converts tokens to a Python expression using regex matching
-#         expr = ""
-#         for token in tokens:
-#             upper = token.upper()
-#             if upper in {"AND", "OR", "NOT"}:
-#                 expr += f" {upper.lower()} "
-#             elif token == "(" or token == ")":
-#                 expr += token
-#             else:
-#                 # Handle phrases and wildcards
-#                 token = token.strip('"')
-#                 regex = token.replace("?", ".").replace("*", ".*")
-#                 expr += f'(re.search(r"{regex}", text, re.IGNORECASE) is not None)'
-#         return expr
-
-#     tokens = tokenize(raw_query)
-#     expr = to_python_expr(tokens)
-
-#     def matcher(text):
-#         try:
-#             return eval(expr, {"re": re, "text": text})
-#         except Exception:
-#             return False
-
-#     return matcher
-
 def compile_keyword_filter(raw_query, debug=False):
     """
     Compiles a Boolean keyword filter with debugging support.
