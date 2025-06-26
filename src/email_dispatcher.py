@@ -50,7 +50,7 @@ def send_email(to_email, subject, body):
 # function to provide csv in the email
 
 import base64
-import datetime
+from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer
 
 DOWNLOAD_SECRET = os.getenv("DOWNLOAD_SECRET")
