@@ -1161,16 +1161,17 @@ st.title("📚 PubMed Journal Tracker")
 
 # Check for unsubscribe token in the URL
 if 'token' in st.query_params:
-    token = st.query_params['token']  # Get the token from the query parameters
+    token = st.query_params['token']
+    action = st.query_params.get('action', 'unsubscribe')  # Default to unsubscribe
     
-    # Call the unsubscribe handling function
-    from unsubscribe import handle_unsubscribe  # Make sure this imports the unsubscribe logic
-    handle_unsubscribe(token)  # Call the function in unsubscribe.py
-
-# Add this at the top of your main app logic, after the unsubscribe check:
-elif 'token' in st.query_params and st.query_params.get('action') == 'download':
-    from app_csv_downloader import handle_download
-    handle_download()
+    if action == 'download':
+        # Handle CSV download
+        from app_csv_downloader import handle_download
+        handle_download(token)
+    else:
+        # Handle unsubscribe
+        from unsubscribe import handle_unsubscribe
+        handle_unsubscribe(token)
 
 else:
     # If no token is found, display the main application interface
@@ -1449,11 +1450,14 @@ else:
                 formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)] if selected_journals else []
                 
                 # Create CSV data for download link
-                csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() and not df.empty else generate_placeholder_csv()
-                
+                if 'df' in locals() and not df.empty:
+                    csv_bytes = df.to_csv(index=False).encode("utf-8")
+                else:
+                    csv_bytes = generate_placeholder_csv().encode("utf-8")
+                    
                 # Generate download token
                 download_token = generate_download_token(csv_bytes, subscriber_email)
-                download_link = f"{BASE_URL}/download?token={download_token}"
+                download_link = f"{BASE_URL}?token={download_token}&action=download"
 
                 result = store_user_subscription(
                     email=subscriber_email,
