@@ -1152,6 +1152,42 @@ serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
 BASE_URL = "https://journaltracker.streamlit.app"
 
+def standardize_date_format(articles):
+    """
+    Standardize date formats across all articles to YYYY-MM-DD format.
+    """
+    from datetime import datetime
+    
+    for article in articles:
+        if 'Date' in article and article['Date']:
+            date_str = str(article['Date'])
+            
+            # Handle PubMed format: 2024-Jun-24
+            if '-' in date_str and len(date_str.split('-')) == 3:
+                try:
+                    # Try parsing PubMed format first
+                    if any(month in date_str for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
+                        parsed_date = datetime.strptime(date_str, '%Y-%b-%d')
+                        article['Date'] = parsed_date.strftime('%Y-%m-%d')
+                    # If already in YYYY-MM-DD format, keep as is
+                    elif date_str.count('-') == 2 and len(date_str) == 10:
+                        # Validate it's actually in the correct format
+                        datetime.strptime(date_str, '%Y-%m-%d')
+                        # If no error, it's already correct
+                except ValueError:
+                    # If parsing fails, try other common formats
+                    try:
+                        # Try YYYY/MM/DD
+                        if '/' in date_str:
+                            parsed_date = datetime.strptime(date_str, '%Y/%m/%d')
+                            article['Date'] = parsed_date.strftime('%Y-%m-%d')
+                    except ValueError:
+                        # Keep original if can't parse
+                        pass
+    
+    return articles
+
 # Streamlit app configuration
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
@@ -1310,6 +1346,9 @@ else:
                     if "Source" not in article:
                         article["Source"] = "PubMed"
 
+                # Standardize date formats before processing
+                all_articles = standardize_date_format(all_articles)
+                
                 merged = merge_and_highlight_articles(all_articles, [], raw_keywords)
                 df = pd.DataFrame(merged)
                 
@@ -1356,7 +1395,7 @@ else:
                                 end_date=end_date,
                                 keywords=keywords
                             )
-                            st.caption("📄 PubMed query example (first journal):")
+                            st.caption("🔧 Actual PubMed API query used for search:")
                             st.code(query_preview, language="none")
                 
                 # Show sample results first
