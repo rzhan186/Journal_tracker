@@ -388,140 +388,73 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
 
 #     return matcher
 
-def compile_keyword_filter(raw_query):
+def compile_keyword_filter(raw_query, debug=False):
     """
-    Compiles a Boolean keyword filter with proper implicit AND handling.
+    Compiles a Boolean keyword filter with debugging support.
     """
     
-    class QueryParser:
-        def __init__(self, query):
-            self.tokens = self._tokenize(query)
-            self.pos = 0
-        
-        def _tokenize(self, query):
-            tokens = re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', 
-                              query, flags=re.IGNORECASE)
-            
-            # Insert implicit AND operators
-            result = []
-            for i, token in enumerate(tokens):
-                result.append(token)
+    def tokenize(query):
+        tokens = re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', query, flags=re.IGNORECASE)
+        if debug:
+            print(f"DEBUG - Tokens: {tokens}")
+        return tokens
+
+    def to_python_expr(tokens):
+        expr_parts = []
+        for i, token in enumerate(tokens):
+            upper = token.upper()
+            if upper in {"AND", "OR", "NOT"}:
+                # Handle implicit AND before NOT
+                if upper == "NOT" and i > 0 and tokens[i-1].upper() not in {"AND", "OR", "("}:
+                    expr_parts.append(" and ")
+                expr_parts.append(f" {upper.lower()} ")
+            elif token in "()":
+                expr_parts.append(token)
+            else:
+                # Add implicit AND if needed
+                if (i > 0 and tokens[i-1].upper() not in {"AND", "OR", "NOT", "("} and 
+                    tokens[i-1] != "("):
+                    expr_parts.append(" and ")
                 
-                # Add implicit AND if:
-                # - current token is a term/closing paren
-                # - next token is a term/NOT/opening paren
-                # - next token is not an explicit operator
-                if i < len(tokens) - 1:
-                    current_upper = token.upper()
-                    next_upper = tokens[i + 1].upper()
-                    
-                    current_is_term = (current_upper not in {'AND', 'OR', 'NOT', '('} and token != ')')
-                    current_is_closing = (token == ')')
-                    
-                    next_is_term = (next_upper not in {'AND', 'OR', ')'} and tokens[i + 1] != '(')
-                    next_is_not = (next_upper == 'NOT')
-                    next_is_opening = (tokens[i + 1] == '(')
-                    
-                    if (current_is_term or current_is_closing) and (next_is_term or next_is_not or next_is_opening):
-                        if next_upper not in {'AND', 'OR'}:
-                            result.append('AND')
-            
-            return result
+                clean_token = token.strip('"')
+                escaped_token = re.escape(clean_token).replace(r'\*', '.*').replace(r'\?', '.')
+                expr_parts.append(f'bool(re.search(r"{escaped_token}", text, re.IGNORECASE))')
         
-        def _current_token(self):
-            return self.tokens[self.pos] if self.pos < len(self.tokens) else None
-        
-        def _consume(self):
-            token = self._current_token()
-            self.pos += 1
-            return token
-        
-        def _match_term(self, text, term):
-            """Match a single term against text"""
-            clean_term = term.strip('"')
-            pattern = re.escape(clean_term).replace(r'\*', '.*').replace(r'\?', '.')
-            return bool(re.search(pattern, text, re.IGNORECASE))
-        
-        def parse_expression(self, text):
-            """Parse OR expressions (lowest precedence)"""
-            result = self.parse_and_expression(text)
-            
-            while self._current_token() and self._current_token().upper() == "OR":
-                self._consume()  # consume OR
-                right = self.parse_and_expression(text)
-                result = result or right
-            
-            return result
-        
-        def parse_and_expression(self, text):
-            """Parse AND expressions (higher precedence than OR)"""
-            result = self.parse_not_expression(text)
-            
-            while self._current_token() and self._current_token().upper() == "AND":
-                self._consume()  # consume AND
-                right = self.parse_not_expression(text)
-                result = result and right
-            
-            return result
-        
-        def parse_not_expression(self, text):
-            """Parse NOT expressions (highest precedence)"""
-            if self._current_token() and self._current_token().upper() == "NOT":
-                self._consume()  # consume NOT
-                return not self.parse_primary_expression(text)
-            else:
-                return self.parse_primary_expression(text)
-        
-        def parse_primary_expression(self, text):
-            """Parse parentheses and terms"""
-            token = self._current_token()
-            
-            if token == "(":
-                self._consume()  # consume (
-                result = self.parse_expression(text)
-                if self._current_token() == ")":
-                    self._consume()  # consume )
-                return result
-            elif token:
-                self._consume()  # consume term
-                return self._match_term(text, token)
-            else:
-                return False
-    
+        expr = ''.join(expr_parts)
+        if debug:
+            print(f"DEBUG - Expression: {expr}")
+        return expr
+
     def matcher(text):
-        if not raw_query.strip():
-            return True
-        
         try:
-            parser = QueryParser(raw_query)
-            # Debug: print the tokens to see what's happening
-            print(f"Tokens for '{raw_query}': {parser.tokens}")
-            parser.pos = 0  # Reset position after debug print
-            result = parser.parse_expression(text)
-            print(f"Query '{raw_query}' on text '{text[:50]}...' -> {result}")
+            tokens = tokenize(raw_query)
+            expr = to_python_expr(tokens)
+            
+            if not expr.strip():
+                return True
+            
+            result = eval(expr, {"re": re, "text": text, "bool": bool})
+            
+            if debug:
+                print(f"DEBUG - Query: '{raw_query}'")
+                print(f"DEBUG - Text preview: '{text[:100]}...'")
+                print(f"DEBUG - Result: {result}")
+                
+                # Additional debugging for your specific case
+                if 'cancer' in raw_query.lower() and 'polyamines' in raw_query.lower():
+                    has_cancer = bool(re.search(r"cancer", text, re.IGNORECASE))
+                    has_polyamines = bool(re.search(r"polyamines", text, re.IGNORECASE))
+                    print(f"DEBUG - Text has 'cancer': {has_cancer}")
+                    print(f"DEBUG - Text has 'polyamines': {has_polyamines}")
+                    print(f"DEBUG - Expected result: {has_cancer and not has_polyamines}")
+            
             return result
         except Exception as e:
-            print(f"Error parsing query '{raw_query}': {e}")
+            if debug:
+                print(f"DEBUG - Error: {e}")
             return False
-    
+
     return matcher
-
-# Test your specific case
-filter_func = compile_keyword_filter("cancer NOT polyamines")
-
-test_cases = [
-    "This article discusses cancer treatment without mentioning other topics",
-    "Research on cancer and polyamines shows interesting results", 
-    "Polyamines research in cellular biology",
-    "Cancer immunotherapy breakthrough"
-]
-
-print("Testing 'cancer NOT polyamines':")
-for text in test_cases:
-    result = filter_func(text)
-    print(f"Expected: {('cancer' in text.lower()) and ('polyamines' not in text.lower())}")
-    print("---")
-
 
 ######################################################################
 # function to fetch articles from preprints
