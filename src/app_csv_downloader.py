@@ -22,7 +22,7 @@ def handle_download(token):
             
             # Generate filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"journal_search_results_{timestamp}.csv"
+            filename = f"JournalTracker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             
             # Provide download button
             st.download_button(
