@@ -29,6 +29,8 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
+BASE_URL = "https://journaltracker.streamlit.app"
+
 # Streamlit app configuration
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
 st.title("📚 PubMed Journal Tracker")
@@ -174,8 +176,8 @@ else:
 
                 if result["status"] == "success":
                     unsubscribe_token = result["unsubscribe_token"]
-                    unsubscribe_link = f"{st.request.url_root}?token={unsubscribe_token}"
-                    
+                    unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
+
                     email_body = f"""Hi {subscriber_email},
 
                 You have successfully subscribed to automatic PubMed updates.
