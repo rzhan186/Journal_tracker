@@ -15,6 +15,7 @@ from store_subscription import store_user_subscription
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, BadSignature
+from email_dispatcher import send_email
 
 load_dotenv()
 
@@ -169,3 +170,32 @@ else:
                 )
                 st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
                 st.write("🛠️ Supabase insert result:", result)
+
+                if result["status"] == "success":
+                    unsubscribe_token = result["unsubscribe_token"]
+                    unsubscribe_link = f"{st.request.url_root}?token={unsubscribe_token}"
+                    
+                    email_body = f"""Hi {subscriber_email},
+
+                You have successfully subscribed to automatic PubMed updates.
+
+                📘 Journals: {', '.join(formatted_journals)}
+                🔑 Keywords: {raw_keywords or 'None'}
+                🔁 Frequency: {frequency}
+                📅 Date Range: {start_date} to {end_date}
+
+                If you wish to unsubscribe, click the link below:
+                🔓 {unsubscribe_link}
+
+                – PubMed Tracker Team
+                    """
+                    
+                    try:
+                        send_email(
+                            to_email=subscriber_email,
+                            subject="📬 PubMed Tracker: Subscription Confirmed",
+                            body=email_body
+                        )
+                        st.success("✅ A confirmation email has been sent.")
+                    except Exception as e:
+                        st.warning(f"⚠️ Subscription saved, but email failed: {e}")
