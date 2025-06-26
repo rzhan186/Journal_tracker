@@ -42,7 +42,7 @@ def handle_download(token):
             
             # Provide clear navigation
             st.markdown("---")
-            st.info("🔙 **Return to Main App:** [Click here to go back to search](https://journaltracker.streamlit.app)")
+            st.info("[Click here to go back to ** search **](https://journaltracker.streamlit.app)")
                 
         else:
             # Token invalid or expired
