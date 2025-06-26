@@ -41,6 +41,7 @@ def store_user_subscription(email, journals, keywords, start_date, end_date, fre
             return {
                 "status": "success", 
                 "data": response.data,
+                "unsubscribe_token": unsubscribe_token  # <== this must be here
             }
         elif hasattr(response, 'error'):
             logging.error(f"Error storing subscription: {response.error}")
