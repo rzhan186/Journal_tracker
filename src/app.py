@@ -1453,8 +1453,8 @@ else:
                 if 'df' in locals() and not df.empty:
                     csv_bytes = df.to_csv(index=False).encode("utf-8")
                 else:
-                    csv_bytes = generate_placeholder_csv().encode("utf-8")
-                    
+                    csv_bytes = generate_placeholder_csv()
+
                 # Generate download token
                 download_token = generate_download_token(csv_bytes, subscriber_email)
                 download_link = f"{BASE_URL}?token={download_token}&action=download"
