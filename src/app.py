@@ -215,9 +215,7 @@ from tracking_main import (
     build_pubmed_query,
     generate_placeholder_csv,
     merge_and_highlight_articles,
-    compile_keyword_filter
-    #export_fetched_articles_as_csv
-)
+    compile_keyword_filter)
 import pandas as pd
 import os
 from store_subscription import store_user_subscription
@@ -313,6 +311,7 @@ else:
                 compiled_filter = compile_keyword_filter(raw_keywords)
                 pubmed_keywords = format_boolean_keywords_for_pubmed(raw_keywords)
 
+                keywords = pubmed_keywords
             else:
                 keywords = None
 
