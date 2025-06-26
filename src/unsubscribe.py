@@ -38,15 +38,17 @@ def handle_unsubscribe(token):
     """)
 
     if st.button("🔕 Confirm Unsubscribe"):
-        # Assuming you have a way of identifying the specific subscription.
-        response = supabase.table("subscriptions").update({"active": False}) \
-            .eq("unsubscribe_token", token).execute()
+        try:
+            # Assuming you have a way of identifying the specific subscription.
+            response = supabase.table("subscriptions").update({"active": False}) \
+                .eq("unsubscribe_token", token).execute()
 
-        # Check if there is an error in the response
-        if response.error:  # Access the error attribute correctly
-            st.error("❌ Failed to unsubscribe. Please try again later.")
-            logging.error(f"Failed to unsubscribe for token {token}: {response.error}")
-        else:
-            st.success("✅ You have been unsubscribed from this update.")
-    else:
-        st.info("Click the button above to complete the unsubscribe process.")
+            # Check if there is an error in the response
+            if response.data:
+                st.success("✅ You have been unsubscribed from this update.")
+            else:
+                st.error("❌ Failed to unsubscribe. Please try again later.")
+                logging.error(f"Failed to unsubscribe for token {token}: {response.error}")
+        except Exception as e:
+             st.error("❌ An error occurred while unsubscribing.")
+             logging.error(f"Error during unsubscribe: {e}")
