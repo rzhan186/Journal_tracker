@@ -212,9 +212,9 @@ from tracking_main import (
     load_pubmed_journal_abbreviations,
     format_boolean_keywords_for_pubmed,
     build_pubmed_query,
-    generate_placeholder_csv,
-    merge_and_highlight_articles,
-    export_fetched_articles_as_csv
+    generate_placeholder_csv
+    #merge_and_highlight_articles,
+    #export_fetched_articles_as_csv
 )
 import pandas as pd
 import os
@@ -264,7 +264,11 @@ else:
     journal_options = list(full_to_abbrev.keys())
 
     email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
-    selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
+    with col2:
+        include_preprints = st.checkbox("📑 Include preprints", help="Currently supports bioRxiv and medRxiv.")
 
     date_option = st.selectbox("📅 Select date range:", ["Past Week", "Past Month", "Past Year", "Custom"])
     today = datetime.today().date()
