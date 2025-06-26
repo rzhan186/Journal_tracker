@@ -1117,7 +1117,6 @@
 #                         st.warning(f"⚠️ Subscription saved, but email failed: {e}")
 
 
-
 import streamlit as st
 from tracking_main import (
     fetch_pubmed_articles_by_date,
@@ -1135,10 +1134,11 @@ from tracking_main import (
 import pandas as pd
 import os
 from store_subscription import store_user_subscription
+from email_dispatcher import (generate_download_token, get_csv_from_token)
 
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from itsdangerous import URLSafeSerializer, BadSignature
+from itsdangerous import URLSafeSerializer, URLSafeTimedSerializer, BadSignature
 
 from email_dispatcher import send_email
 
@@ -1166,7 +1166,12 @@ if 'token' in st.query_params:
     # Call the unsubscribe handling function
     from unsubscribe import handle_unsubscribe  # Make sure this imports the unsubscribe logic
     handle_unsubscribe(token)  # Call the function in unsubscribe.py
-    
+
+# Add this at the top of your main app logic, after the unsubscribe check:
+elif 'token' in st.query_params and st.query_params.get('action') == 'download':
+    from app_csv_downloader import handle_download
+    handle_download()
+
 else:
     # If no token is found, display the main application interface
 
@@ -1375,7 +1380,7 @@ else:
                 st.download_button(
                     label="📥 Download Results as CSV",
                     data=csv_data,
-                    file_name=f"search_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    file_name=f"JournalTracker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv"
                 )
                 
@@ -1418,9 +1423,19 @@ else:
             frequency = freq_choice
 
         st.markdown("✅ Confirm your subscription")
+
+        # source summary
+        sources_summary = []
+        if selected_journals:
+            sources_summary.append(f"Journals: {', '.join(selected_journals)}")
+        if include_preprints:
+            sources_summary.append("Preprints: bioRxiv, medRxiv")
+
+        sources_text = " | ".join(sources_summary) if sources_summary else "None selected"
+
         st.info(f"""
                 **Email**: {subscriber_email or "Not provided"}  
-                **Journals**: {', '.join(selected_journals) if selected_journals else "None selected"}  
+                **Sources**: {sources_text}
                 **Keywords**: {raw_keywords if raw_keywords else "None"}  
                 **Frequency**: {frequency}
                 """)
@@ -1432,7 +1447,13 @@ else:
                 st.error("❌ Please select at least one journal or include preprints.")
             else:
                 formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)] if selected_journals else []
+                
+                # Create CSV data for download link
                 csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() and not df.empty else generate_placeholder_csv()
+                
+                # Generate download token
+                download_token = generate_download_token(csv_bytes, subscriber_email)
+                download_link = f"{BASE_URL}/download?token={download_token}"
 
                 result = store_user_subscription(
                     email=subscriber_email,
@@ -1449,19 +1470,36 @@ else:
                     unsubscribe_token = result["unsubscribe_token"]
                     unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
 
+                    # Build comprehensive source list for email
+                    source_list = []
+                    if formatted_journals:
+                        source_list.extend(formatted_journals)
+                    if include_preprints:
+                        source_list.extend(['bioRxiv', 'medRxiv'])
+                    
+                    source_description = ', '.join(source_list) if source_list else 'No sources selected'
+
                     email_body = f"""Hi {subscriber_email},
 
-                You have successfully subscribed to automatic PubMed updates.
+        You have successfully subscribed to automatic PubMed updates.
 
-                📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'Preprints only'}
-                🔑 Keywords: {raw_keywords or 'None'}
-                🔁 Frequency: {frequency}
-                📅 Date Range: {start_date} to {end_date}
+        📊 SUBSCRIPTION DETAILS:
+        📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
+        📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
+        🔍 All Sources: {source_description}
+        🔑 Keywords: {raw_keywords or 'None'}
+        🔁 Frequency: {frequency}
+        📅 Date Range: {start_date} to {end_date}
 
-                If you wish to unsubscribe, click the link below:
-                🔓 {unsubscribe_link}
+        📥 DOWNLOAD YOUR CURRENT RESULTS:
+        Your search results are available for download (expires in 24 hours):
+        🔗 {download_link}
 
-                – PubMed Tracker Team
+        🔓 UNSUBSCRIBE:
+        If you wish to unsubscribe, click the link below:
+        {unsubscribe_link}
+
+        – PubMed Tracker Team
                     """
                     
                     try:
@@ -1470,6 +1508,6 @@ else:
                             subject="📬 Journal Tracker: Subscription Confirmed",
                             body=email_body
                         )
-                        st.success("✅ A confirmation email has been sent.")
+                        st.success("✅ A confirmation email with download link has been sent.")
                     except Exception as e:
                         st.warning(f"⚠️ Subscription saved, but email failed: {e}")

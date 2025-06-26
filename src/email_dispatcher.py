@@ -46,37 +46,34 @@ def send_email(to_email, subject, body):
         raise  # Reraise exception for further handling if needed
 
 
+######################################################################
+# function to provide csv in the email
 
-# def process_subscriptions(): # this function is not intendted for use in app.py 
-#     """Processes subscriptions by fetching from the Supabase and sending emails."""
-#     logging.info("📨 Checking subscriptions...")
-#     try:
-#         # Execute the query to retrieve subscriptions
-#         res = supabase.table("subscriptions").select("*").execute()
+import base64
+import datetime
+from itsdangerous import URLSafeTimedSerializer
 
-#         # Check if the response is successful
-#         if not res.data:
-#             logging.warning("No subscriptions found.")  # Log if no data is returned
-#             return
-        
-#         # Process each subscription
-#         for user in res.data:
-#             email = user['email']
-#             journals = user['journals']
-#             frequency = user['frequency']
-#             body = f"""Hi {email},
+DOWNLOAD_SECRET = os.getenv("DOWNLOAD_SECRET")
+download_serializer = URLSafeTimedSerializer(DOWNLOAD_SECRET, salt="csv-download")
 
-# This is your {frequency} update for the following journals: {journals}.
+def generate_download_token(csv_data, email):
+    """Generate a secure token for CSV download that expires in 24 hours"""
+    # Encode CSV data and email info
+    payload = {
+        'csv_data': base64.b64encode(csv_data).decode('utf-8'),
+        'email': email,
+        'timestamp': datetime.now().isoformat()
+    }
+    return download_serializer.dumps(payload)
 
-# 🔎 This is just a test. The real search and article results would be inserted here later.
+def get_csv_from_token(token):
+    """Retrieve CSV data from token (with 24-hour expiration)"""
+    try:
+        # Token expires after 24 hours (86400 seconds)
+        payload = download_serializer.loads(token, max_age=86400)
+        csv_data = base64.b64decode(payload['csv_data'].encode('utf-8'))
+        return csv_data, payload['email']
+    except Exception as e:
+        return None, None
+    
 
-# – PubMed Tracker Team
-#             """
-#             send_email(email, f"Your {frequency} PubMed update", body)  # Send the email
-#             logging.info(f"✅ Sent test email to {email}")  # Log sent emails
-            
-#     except Exception as e:
-#         logging.error(f"Failed to process subscriptions: {str(e)}")  # Improved error logging
-
-# if __name__ == "__main__":
-#     process_subscriptions()  # Call the function to process subscriptions
