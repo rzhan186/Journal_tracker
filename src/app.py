@@ -1158,35 +1158,47 @@ def standardize_date_format(articles):
     """
     from datetime import datetime
     
-    for article in articles:
+    print(f"DEBUG: Processing {len(articles)} articles for date standardization")
+    
+    for i, article in enumerate(articles):
         if 'Date' in article and article['Date']:
-            date_str = str(article['Date'])
+            original_date = str(article['Date'])
+            print(f"DEBUG: Article {i} - Original date: '{original_date}' (type: {type(article['Date'])})")
             
             # Handle PubMed format: 2024-Jun-24
-            if '-' in date_str and len(date_str.split('-')) == 3:
+            if '-' in original_date and len(original_date.split('-')) == 3:
                 try:
                     # Try parsing PubMed format first
-                    if any(month in date_str for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    if any(month in original_date for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                                                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
-                        parsed_date = datetime.strptime(date_str, '%Y-%b-%d')
+                        print(f"DEBUG: Detected PubMed format: {original_date}")
+                        parsed_date = datetime.strptime(original_date, '%Y-%b-%d')
                         article['Date'] = parsed_date.strftime('%Y-%m-%d')
+                        print(f"DEBUG: Converted to: {article['Date']}")
                     # If already in YYYY-MM-DD format, keep as is
-                    elif date_str.count('-') == 2 and len(date_str) == 10:
+                    elif original_date.count('-') == 2 and len(original_date) == 10:
+                        print(f"DEBUG: Already in standard format: {original_date}")
                         # Validate it's actually in the correct format
-                        datetime.strptime(date_str, '%Y-%m-%d')
+                        datetime.strptime(original_date, '%Y-%m-%d')
                         # If no error, it's already correct
-                except ValueError:
+                except ValueError as e:
+                    print(f"DEBUG: Error parsing date '{original_date}': {e}")
                     # If parsing fails, try other common formats
                     try:
                         # Try YYYY/MM/DD
-                        if '/' in date_str:
-                            parsed_date = datetime.strptime(date_str, '%Y/%m/%d')
+                        if '/' in original_date:
+                            parsed_date = datetime.strptime(original_date, '%Y/%m/%d')
                             article['Date'] = parsed_date.strftime('%Y-%m-%d')
+                            print(f"DEBUG: Converted slash format to: {article['Date']}")
                     except ValueError:
+                        print(f"DEBUG: Could not parse date, keeping original: {original_date}")
                         # Keep original if can't parse
                         pass
+            else:
+                print(f"DEBUG: Date doesn't match expected format: {original_date}")
     
     return articles
+
 
 # Streamlit app configuration
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
