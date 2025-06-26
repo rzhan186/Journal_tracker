@@ -390,7 +390,7 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
 
 def compile_keyword_filter(raw_query):
     """
-    Compiles a Boolean keyword filter with proper operator precedence.
+    Compiles a Boolean keyword filter with proper implicit AND handling.
     """
     
     class QueryParser:
@@ -399,8 +399,34 @@ def compile_keyword_filter(raw_query):
             self.pos = 0
         
         def _tokenize(self, query):
-            return re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', 
-                            query, flags=re.IGNORECASE)
+            tokens = re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', 
+                              query, flags=re.IGNORECASE)
+            
+            # Insert implicit AND operators
+            result = []
+            for i, token in enumerate(tokens):
+                result.append(token)
+                
+                # Add implicit AND if:
+                # - current token is a term/closing paren
+                # - next token is a term/NOT/opening paren
+                # - next token is not an explicit operator
+                if i < len(tokens) - 1:
+                    current_upper = token.upper()
+                    next_upper = tokens[i + 1].upper()
+                    
+                    current_is_term = (current_upper not in {'AND', 'OR', 'NOT', '('} and token != ')')
+                    current_is_closing = (token == ')')
+                    
+                    next_is_term = (next_upper not in {'AND', 'OR', ')'} and tokens[i + 1] != '(')
+                    next_is_not = (next_upper == 'NOT')
+                    next_is_opening = (tokens[i + 1] == '(')
+                    
+                    if (current_is_term or current_is_closing) and (next_is_term or next_is_not or next_is_opening):
+                        if next_upper not in {'AND', 'OR'}:
+                            result.append('AND')
+            
+            return result
         
         def _current_token(self):
             return self.tokens[self.pos] if self.pos < len(self.tokens) else None
@@ -468,12 +494,33 @@ def compile_keyword_filter(raw_query):
         
         try:
             parser = QueryParser(raw_query)
-            return parser.parse_expression(text)
+            # Debug: print the tokens to see what's happening
+            print(f"Tokens for '{raw_query}': {parser.tokens}")
+            parser.pos = 0  # Reset position after debug print
+            result = parser.parse_expression(text)
+            print(f"Query '{raw_query}' on text '{text[:50]}...' -> {result}")
+            return result
         except Exception as e:
             print(f"Error parsing query '{raw_query}': {e}")
             return False
     
     return matcher
+
+# Test your specific case
+filter_func = compile_keyword_filter("cancer NOT polyamines")
+
+test_cases = [
+    "This article discusses cancer treatment without mentioning other topics",
+    "Research on cancer and polyamines shows interesting results", 
+    "Polyamines research in cellular biology",
+    "Cancer immunotherapy breakthrough"
+]
+
+print("Testing 'cancer NOT polyamines':")
+for text in test_cases:
+    result = filter_func(text)
+    print(f"Expected: {('cancer' in text.lower()) and ('polyamines' not in text.lower())}")
+    print("---")
 
 
 ######################################################################
