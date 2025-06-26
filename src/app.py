@@ -196,7 +196,7 @@ else:
                     try:
                         send_email(
                             to_email=subscriber_email,
-                            subject="📬 PubMed Tracker: Subscription Confirmed",
+                            subject="📬 Journal Tracker: Subscription Confirmed",
                             body=email_body
                         )
                         st.success("✅ A confirmation email has been sent.")

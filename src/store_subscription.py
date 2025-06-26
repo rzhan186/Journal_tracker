@@ -76,15 +76,17 @@ def get_user_subscription(email):
 
 
 def verify_unsubscribe_token(token):
-    """Verifies the unsubscribe token and returns the associated subscription data."""
     try:
-        email = serializer.loads(token)  # Decodes the token to get the email
-        subscription = get_user_subscription(email)  # Fetch subscription by email
+        # First verify the token is decodable
+        serializer.loads(token)
 
-        if subscription:
-            return subscription
+        # Look up the subscription in Supabase directly by token
+        response = supabase.table("subscriptions").select("*").eq("unsubscribe_token", token).execute()
+
+        if response.data:
+            return response.data[0]
         else:
-            return None  # No subscription found for the email
+            return None
 
     except (BadSignature, SignatureExpired):
         logging.warning("Invalid or expired token")
