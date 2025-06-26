@@ -15,6 +15,7 @@ from store_subscription import store_user_subscription
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, BadSignature
+
 from email_dispatcher import send_email
 
 load_dotenv()

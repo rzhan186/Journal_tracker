@@ -46,38 +46,37 @@ def send_email(to_email, subject, body):
         raise  # Reraise exception for further handling if needed
 
 
-# THe code below works, don't change it for now
 
-def process_subscriptions(): 
-    """Processes subscriptions by fetching from the Supabase and sending emails."""
-    logging.info("📨 Checking subscriptions...")
-    try:
-        # Execute the query to retrieve subscriptions
-        res = supabase.table("subscriptions").select("*").execute()
+# def process_subscriptions(): # this function is not intendted for use in app.py 
+#     """Processes subscriptions by fetching from the Supabase and sending emails."""
+#     logging.info("📨 Checking subscriptions...")
+#     try:
+#         # Execute the query to retrieve subscriptions
+#         res = supabase.table("subscriptions").select("*").execute()
 
-        # Check if the response is successful
-        if not res.data:
-            logging.warning("No subscriptions found.")  # Log if no data is returned
-            return
+#         # Check if the response is successful
+#         if not res.data:
+#             logging.warning("No subscriptions found.")  # Log if no data is returned
+#             return
         
-        # Process each subscription
-        for user in res.data:
-            email = user['email']
-            journals = user['journals']
-            frequency = user['frequency']
-            body = f"""Hi {email},
+#         # Process each subscription
+#         for user in res.data:
+#             email = user['email']
+#             journals = user['journals']
+#             frequency = user['frequency']
+#             body = f"""Hi {email},
 
-This is your {frequency} update for the following journals: {journals}.
+# This is your {frequency} update for the following journals: {journals}.
 
-🔎 This is just a test. The real search and article results would be inserted here later.
+# 🔎 This is just a test. The real search and article results would be inserted here later.
 
-– PubMed Tracker Team
-            """
-            send_email(email, f"Your {frequency} PubMed update", body)  # Send the email
-            logging.info(f"✅ Sent test email to {email}")  # Log sent emails
+# – PubMed Tracker Team
+#             """
+#             send_email(email, f"Your {frequency} PubMed update", body)  # Send the email
+#             logging.info(f"✅ Sent test email to {email}")  # Log sent emails
             
-    except Exception as e:
-        logging.error(f"Failed to process subscriptions: {str(e)}")  # Improved error logging
+#     except Exception as e:
+#         logging.error(f"Failed to process subscriptions: {str(e)}")  # Improved error logging
 
-if __name__ == "__main__":
-    process_subscriptions()  # Call the function to process subscriptions
+# if __name__ == "__main__":
+#     process_subscriptions()  # Call the function to process subscriptions
