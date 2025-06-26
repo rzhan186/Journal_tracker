@@ -351,41 +351,128 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
 ######################################################################
 # function to allow fetch preprints to use the same keyword logic as pubmed
 
+# def compile_keyword_filter(raw_query):
+#     """
+#     Compiles a Boolean keyword filter supporting AND, OR, NOT, parentheses, and wildcards (*, ?).
+#     Returns a function that takes text input and returns True if it matches the query.
+#     """
+
+#     def tokenize(query):
+#         # Tokenizes Boolean expressions including parentheses, operators, wildcards, and quoted phrases
+#         return re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', query, flags=re.IGNORECASE)
+
+#     def to_python_expr(tokens):
+#         # Converts tokens to a Python expression using regex matching
+#         expr = ""
+#         for token in tokens:
+#             upper = token.upper()
+#             if upper in {"AND", "OR", "NOT"}:
+#                 expr += f" {upper.lower()} "
+#             elif token == "(" or token == ")":
+#                 expr += token
+#             else:
+#                 # Handle phrases and wildcards
+#                 token = token.strip('"')
+#                 regex = token.replace("?", ".").replace("*", ".*")
+#                 expr += f'(re.search(r"{regex}", text, re.IGNORECASE) is not None)'
+#         return expr
+
+#     tokens = tokenize(raw_query)
+#     expr = to_python_expr(tokens)
+
+#     def matcher(text):
+#         try:
+#             return eval(expr, {"re": re, "text": text})
+#         except Exception:
+#             return False
+
+#     return matcher
+
 def compile_keyword_filter(raw_query):
     """
-    Compiles a Boolean keyword filter supporting AND, OR, NOT, parentheses, and wildcards (*, ?).
-    Returns a function that takes text input and returns True if it matches the query.
+    Compiles a Boolean keyword filter with proper operator precedence.
     """
-
-    def tokenize(query):
-        # Tokenizes Boolean expressions including parentheses, operators, wildcards, and quoted phrases
-        return re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', query, flags=re.IGNORECASE)
-
-    def to_python_expr(tokens):
-        # Converts tokens to a Python expression using regex matching
-        expr = ""
-        for token in tokens:
-            upper = token.upper()
-            if upper in {"AND", "OR", "NOT"}:
-                expr += f" {upper.lower()} "
-            elif token == "(" or token == ")":
-                expr += token
+    
+    class QueryParser:
+        def __init__(self, query):
+            self.tokens = self._tokenize(query)
+            self.pos = 0
+        
+        def _tokenize(self, query):
+            return re.findall(r'\(|\)|\bAND\b|\bOR\b|\bNOT\b|"[^"]+"|\w[\w*?]*', 
+                            query, flags=re.IGNORECASE)
+        
+        def _current_token(self):
+            return self.tokens[self.pos] if self.pos < len(self.tokens) else None
+        
+        def _consume(self):
+            token = self._current_token()
+            self.pos += 1
+            return token
+        
+        def _match_term(self, text, term):
+            """Match a single term against text"""
+            clean_term = term.strip('"')
+            pattern = re.escape(clean_term).replace(r'\*', '.*').replace(r'\?', '.')
+            return bool(re.search(pattern, text, re.IGNORECASE))
+        
+        def parse_expression(self, text):
+            """Parse OR expressions (lowest precedence)"""
+            result = self.parse_and_expression(text)
+            
+            while self._current_token() and self._current_token().upper() == "OR":
+                self._consume()  # consume OR
+                right = self.parse_and_expression(text)
+                result = result or right
+            
+            return result
+        
+        def parse_and_expression(self, text):
+            """Parse AND expressions (higher precedence than OR)"""
+            result = self.parse_not_expression(text)
+            
+            while self._current_token() and self._current_token().upper() == "AND":
+                self._consume()  # consume AND
+                right = self.parse_not_expression(text)
+                result = result and right
+            
+            return result
+        
+        def parse_not_expression(self, text):
+            """Parse NOT expressions (highest precedence)"""
+            if self._current_token() and self._current_token().upper() == "NOT":
+                self._consume()  # consume NOT
+                return not self.parse_primary_expression(text)
             else:
-                # Handle phrases and wildcards
-                token = token.strip('"')
-                regex = token.replace("?", ".").replace("*", ".*")
-                expr += f'(re.search(r"{regex}", text, re.IGNORECASE) is not None)'
-        return expr
-
-    tokens = tokenize(raw_query)
-    expr = to_python_expr(tokens)
-
+                return self.parse_primary_expression(text)
+        
+        def parse_primary_expression(self, text):
+            """Parse parentheses and terms"""
+            token = self._current_token()
+            
+            if token == "(":
+                self._consume()  # consume (
+                result = self.parse_expression(text)
+                if self._current_token() == ")":
+                    self._consume()  # consume )
+                return result
+            elif token:
+                self._consume()  # consume term
+                return self._match_term(text, token)
+            else:
+                return False
+    
     def matcher(text):
+        if not raw_query.strip():
+            return True
+        
         try:
-            return eval(expr, {"re": re, "text": text})
-        except Exception:
+            parser = QueryParser(raw_query)
+            return parser.parse_expression(text)
+        except Exception as e:
+            print(f"Error parsing query '{raw_query}': {e}")
             return False
-
+    
     return matcher
 
 
