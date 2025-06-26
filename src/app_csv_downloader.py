@@ -73,6 +73,3 @@ def handle_download(token):
         Please try again or contact support if the issue persists.
         """)
         
-    # Footer with additional info
-    st.markdown("---")
-    st.caption("🔐 All downloads are secured with time-limited tokens for your privacy and security.")
