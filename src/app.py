@@ -264,12 +264,7 @@ else:
     journal_options = list(full_to_abbrev.keys())
 
     email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
-    with col2:
-        include_preprints = st.checkbox("📑 Include preprints", help="Currently supports bioRxiv and medRxiv.")
-
+    selected_journals = st.multiselect("📘 Select journal(s):", options=journal_options)
 
     date_option = st.selectbox("📅 Select date range:", ["Past Week", "Past Month", "Past Year", "Custom"])
     today = datetime.today().date()
