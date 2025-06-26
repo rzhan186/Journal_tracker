@@ -214,7 +214,8 @@ from tracking_main import (
     format_boolean_keywords_for_pubmed,
     build_pubmed_query,
     generate_placeholder_csv,
-    merge_and_highlight_articles
+    merge_and_highlight_articles,
+    compile_keyword_filter
     #export_fetched_articles_as_csv
 )
 import pandas as pd
@@ -308,7 +309,10 @@ else:
                 if raw_keywords.count("(") != raw_keywords.count(")"):
                     st.warning("⚠️ Unbalanced parentheses.")
                     st.stop()
-                keywords = format_boolean_keywords_for_pubmed(raw_keywords.strip())
+                user_keywords = raw_keywords.strip()
+                compiled_filter = compile_keyword_filter(raw_keywords)
+                pubmed_keywords = format_boolean_keywords_for_pubmed(raw_keywords)
+
             else:
                 keywords = None
 
@@ -324,24 +328,33 @@ else:
 
             all_articles = []
             for journal in selected_journals:
-                articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
+                articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, pubmed_keywords)
+
                 for article in articles:
                     article["Journal"] = journal
                 all_articles.extend(articles)
 
             if include_preprints:
-                for preprint_server in ["biorxiv", "medrxiv"]:
-                    preprint_articles = fetch_preprints(
-                        server=preprint_server,
+                for server in ["biorxiv", "medrxiv"]:
+                    preprints = fetch_preprints(
+                        server=server,
                         start_date=start_date,
                         end_date=end_date,
                         keywords=raw_keywords
                     )
-                    all_articles.extend(preprint_articles)
+                    for article in preprints:
+                        article["Journal"] = server
+                        article["Source"] = "Preprint"
+                    all_articles.extend(preprints)
 
             if all_articles:
                 merged = merge_and_highlight_articles(all_articles, [], raw_keywords)
-                df = pd.DataFrame(merged)
+                for article in all_articles:
+                    if "source" not in article:
+                        article["Source"] = "PubMed"  # Add this field to match CSV header
+
+                df = pd.DataFrame(merge_and_highlight_articles(all_articles, [], raw_keywords))
+
                 st.success(f"✅ Found {len(df)} articles.")
                 st.download_button("📥 Download CSV", df.to_csv(index=False).encode("utf-8"), file_name="Combined_Results.csv")
             else:
@@ -382,7 +395,7 @@ else:
                 st.error("❌ Please select at least one journal.")
             else:
                 formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)]
-                csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() else generate_placeholder_csv()
+                csv_bytes = df.to_csv(index=False).encode("utf-8") if "df" in locals() and not df.empty else generate_placeholder_csv()
 
                 result = store_user_subscription(
                     email=subscriber_email,
