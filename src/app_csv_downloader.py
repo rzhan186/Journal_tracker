@@ -34,7 +34,7 @@ def handle_download(token):
             )
             
             # Security notice
-            st.warning("🔒 **Security Notice:** This download link will expire soon for your protection. Please save your results now.")
+            st.warning("This download link will expire in 24 hours. Please save your results now.")
             
             # Show file info
             file_size = len(csv_data) / 1024  # Size in KB
