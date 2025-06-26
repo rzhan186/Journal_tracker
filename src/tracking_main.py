@@ -536,7 +536,6 @@ def generate_placeholder_csv():
 
 ######################################################################
 # add a function to merge pubmed and preprints output then highlight keywords
-
 def merge_and_highlight_articles(articles, fields_to_highlight=["Title", "Abstract"], raw_keywords=""):
     """Highlights keywords in articles' titles and abstracts."""
     def highlight(text, terms):
@@ -558,6 +557,117 @@ def merge_and_highlight_articles(articles, fields_to_highlight=["Title", "Abstra
                 article[field] = highlight(article[field], terms)
 
     return articles
+
+
+######################################################################
+# function to standardize date format for pubmed and preprint entries
+
+def standardize_date_format(articles):
+    """
+    Standardize date formats across all articles to YYYY-MM-DD format.
+    """
+    from datetime import datetime
+    
+    for article in articles:
+        if 'Publication Date' in article and article['Publication Date']:
+            original_date = str(article['Publication Date'])
+            
+            try:
+                # Handle PubMed format: 2025-Jun-25
+                if '-' in original_date and any(month in original_date for month in 
+                    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
+                    parsed_date = datetime.strptime(original_date, '%Y-%b-%d')
+                    article['Publication Date'] = parsed_date.strftime('%Y-%m-%d')
+                
+                # Handle bioRxiv format: 2025/6/24 or 2025/06/24
+                elif '/' in original_date:
+                    # Split and pad with zeros if needed
+                    parts = original_date.split('/')
+                    if len(parts) == 3:
+                        year, month, day = parts
+                        # Pad month and day with leading zeros
+                        month = month.zfill(2)
+                        day = day.zfill(2)
+                        standardized = f"{year}-{month}-{day}"
+                        # Validate the date
+                        datetime.strptime(standardized, '%Y-%m-%d')
+                        article['Publication Date'] = standardized
+                
+                # Handle already standard format: 2025-01-01
+                elif '-' in original_date and len(original_date) == 10:
+                    # Validate it's in correct format
+                    datetime.strptime(original_date, '%Y-%m-%d')
+                    # Already correct, no change needed
+                    
+            except ValueError as e:
+                # If any parsing fails, keep the original date
+                print(f"Warning: Could not parse date '{original_date}': {e}")
+                pass
+        
+        # Also check for 'Date' field (backup)
+        elif 'Date' in article and article['Date']:
+            original_date = str(article['Date'])
+            
+            try:
+                # Same logic for 'Date' field
+                if '-' in original_date and any(month in original_date for month in 
+                    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
+                    parsed_date = datetime.strptime(original_date, '%Y-%b-%d')
+                    article['Date'] = parsed_date.strftime('%Y-%m-%d')
+                
+                elif '/' in original_date:
+                    parts = original_date.split('/')
+                    if len(parts) == 3:
+                        year, month, day = parts
+                        month = month.zfill(2)
+                        day = day.zfill(2)
+                        standardized = f"{year}-{month}-{day}"
+                        datetime.strptime(standardized, '%Y-%m-%d')
+                        article['Date'] = standardized
+                
+                elif '-' in original_date and len(original_date) == 10:
+                    datetime.strptime(original_date, '%Y-%m-%d')
+                    
+            except ValueError as e:
+                print(f"Warning: Could not parse date '{original_date}': {e}")
+                pass
+    
+    return articles
+
+######################################################################
+# function to standardize DOI format for pubmed and preprint entries
+
+def standardize_doi_format(articles):
+    """
+    Standardize DOI formats across all articles to just the DOI identifier (without URL prefix).
+    """
+    
+    for article in articles:
+        # Check for DOI field
+        if 'DOI' in article and article['DOI']:
+            original_doi = str(article['DOI']).strip()
+            
+            # Remove common DOI URL prefixes
+            prefixes_to_remove = [
+                'https://doi.org/',
+                'http://doi.org/',
+                'https://dx.doi.org/',
+                'http://dx.doi.org/',
+                'doi:',
+                'DOI:'
+            ]
+            
+            standardized_doi = original_doi
+            for prefix in prefixes_to_remove:
+                if standardized_doi.startswith(prefix):
+                    standardized_doi = standardized_doi[len(prefix):]
+                    break
+            
+            # Update the article with standardized DOI
+            article['DOI'] = standardized_doi
+    
+    return articles
+
 
 
 

@@ -1127,7 +1127,10 @@ from tracking_main import (
     build_pubmed_query,
     generate_placeholder_csv,
     merge_and_highlight_articles,
-    compile_keyword_filter)
+    compile_keyword_filter,
+    standardize_date_format,
+    standardize_doi_format
+    )
 
 import pandas as pd
 import os
@@ -1151,79 +1154,6 @@ UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
 BASE_URL = "https://journaltracker.streamlit.app"
-
-def standardize_date_format(articles):
-    """
-    Standardize date formats across all articles to YYYY-MM-DD format.
-    """
-    from datetime import datetime
-    
-    for article in articles:
-        if 'Publication Date' in article and article['Publication Date']:
-            original_date = str(article['Publication Date'])
-            
-            try:
-                # Handle PubMed format: 2025-Jun-25
-                if '-' in original_date and any(month in original_date for month in 
-                    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
-                    parsed_date = datetime.strptime(original_date, '%Y-%b-%d')
-                    article['Publication Date'] = parsed_date.strftime('%Y-%m-%d')
-                
-                # Handle bioRxiv format: 2025/6/24 or 2025/06/24
-                elif '/' in original_date:
-                    # Split and pad with zeros if needed
-                    parts = original_date.split('/')
-                    if len(parts) == 3:
-                        year, month, day = parts
-                        # Pad month and day with leading zeros
-                        month = month.zfill(2)
-                        day = day.zfill(2)
-                        standardized = f"{year}-{month}-{day}"
-                        # Validate the date
-                        datetime.strptime(standardized, '%Y-%m-%d')
-                        article['Publication Date'] = standardized
-                
-                # Handle already standard format: 2025-01-01
-                elif '-' in original_date and len(original_date) == 10:
-                    # Validate it's in correct format
-                    datetime.strptime(original_date, '%Y-%m-%d')
-                    # Already correct, no change needed
-                    
-            except ValueError as e:
-                # If any parsing fails, keep the original date
-                print(f"Warning: Could not parse date '{original_date}': {e}")
-                pass
-        
-        # Also check for 'Date' field (backup)
-        elif 'Date' in article and article['Date']:
-            original_date = str(article['Date'])
-            
-            try:
-                # Same logic for 'Date' field
-                if '-' in original_date and any(month in original_date for month in 
-                    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
-                    parsed_date = datetime.strptime(original_date, '%Y-%b-%d')
-                    article['Date'] = parsed_date.strftime('%Y-%m-%d')
-                
-                elif '/' in original_date:
-                    parts = original_date.split('/')
-                    if len(parts) == 3:
-                        year, month, day = parts
-                        month = month.zfill(2)
-                        day = day.zfill(2)
-                        standardized = f"{year}-{month}-{day}"
-                        datetime.strptime(standardized, '%Y-%m-%d')
-                        article['Date'] = standardized
-                
-                elif '-' in original_date and len(original_date) == 10:
-                    datetime.strptime(original_date, '%Y-%m-%d')
-                    
-            except ValueError as e:
-                print(f"Warning: Could not parse date '{original_date}': {e}")
-                pass
-    
-    return articles
-
 
 # Streamlit app configuration
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
@@ -1385,6 +1315,7 @@ else:
 
                 # Standardize date formats before processing
                 all_articles = standardize_date_format(all_articles)
+                all_articles = standardize_doi_format(all_articles)
                 
                 merged = merge_and_highlight_articles(all_articles, [], raw_keywords)
                 df = pd.DataFrame(merged)
