@@ -106,12 +106,14 @@ else:
                 st.stop()
 
             # Only process journal validation if journals are selected
-            formatted_journals = []
-            if selected_journals:
-                formatted_journals = [full_to_abbrev.get(j) for j in selected_journals if j in full_to_abbrev]
-                if not formatted_journals:
-                    st.error("❌ Invalid journal names.")
-                    st.stop()
+            # Process selected journals
+            # Use selected journals directly as a list
+            formatted_journals = list(selected_journals) if selected_journals else []
+
+            # Validation
+            if not formatted_journals and not include_preprints:
+                st.error("❌ Please select at least one journal or enable preprints.")
+                st.stop()
 
             # Validate keywords early if provided
             if raw_keywords.strip():
@@ -349,6 +351,7 @@ else:
                     start_date=start_date,
                     end_date=end_date,
                     frequency=frequency,
+                    include_preprints=include_preprints
                 )
                 st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
                 st.write("🛠️ Supabase insert result:", result)

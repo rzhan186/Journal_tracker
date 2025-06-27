@@ -106,12 +106,23 @@ def handle_unsubscribe(token):
 
         # Display each subscription with a checkbox
         for i, sub in enumerate(all_subscriptions):
-            # Create a unique key for each checkbox
             checkbox_key = f"unsub_{sub['id']}"
             
-            # Format subscription details
-            journals_display = ', '.join(sub['journals']) if sub['journals'] else 'None'
-            keywords_display = sub['keywords'] if sub['keywords'] else 'None'
+            # Format subscription details - PROPER JSON HANDLING
+            journals_raw = sub.get('journals', [])
+            
+            # Handle JSON data properly
+            if isinstance(journals_raw, list):
+                journals_display = ', '.join(journals_raw) if journals_raw else 'None'
+            else:
+                journals_display = 'None'
+            
+            # FIX THE KEYWORDS DISPLAY
+            keywords_display = sub.get('keywords') if sub.get('keywords') else 'None'
+            
+            # FIX THE PREPRINTS DISPLAY
+            include_preprints = sub.get('include_preprints', False)
+            preprints_display = 'Yes' if include_preprints else 'No'
             
             # Create columns for better layout
             col1, col2 = st.columns([1, 4])
@@ -129,12 +140,16 @@ def handle_unsubscribe(token):
                 with st.expander(f"🔔 Subscription #{i+1} - {sub['frequency']}", expanded=False):
                     st.markdown(f"""
                     - **📘 Journals**: {journals_display}
-                    - **📑 Preprints**: {'Yes' if sub.get('include_preprints', False) else 'No'}
+                    - **📑 Preprints**: {preprints_display}
                     - **🔑 Keywords**: {keywords_display}
                     - **🔁 Frequency**: {sub['frequency']}
                     - **📅 Created**: {sub.get('created_at', 'N/A')[:10]}
                     - **🆔 ID**: {sub['id']}
                     """)
+                    
+                    # DEBUG: Show raw data (remove this after fixing)
+                    if st.checkbox(f"🔧 Show raw data", key=f"debug_{sub['id']}"):
+                        st.json(sub)
             
             # Add to removal list if selected
             if selected:
