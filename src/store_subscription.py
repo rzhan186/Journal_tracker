@@ -74,23 +74,63 @@ def get_user_subscription(email):
         logging.exception("Error in get_user_subscription")
         return None
 
+# def verify_unsubscribe_token(token):
+#     try:
+#         # First verify the token is decodable
+#         serializer.loads(token)
+
+#         # Look up the subscription in Supabase directly by token
+#         response = supabase.table("subscriptions").select("*").eq("unsubscribe_token", token).execute()
+
+#         if response.data:
+#             return response.data[0]
+#         else:
+#             return None
+
+#     except (BadSignature, SignatureExpired):
+#         logging.warning("Invalid or expired token")
+#         return None
+#     except Exception as e:
+#         logging.exception("Error in verify_unsubscribe_token")
+#         return None
+    
+
+def get_user_subscriptions_by_email(email):
+    """
+    Retrieve all active subscriptions for a given email address
+    """
+    try:
+        response = supabase.table("subscriptions").select("*") \
+            .eq("email", email) \
+            .eq("active", True) \
+            .order("created_at", desc=True) \
+            .execute()
+        
+        if response.data:
+            return response.data
+        else:
+            return []
+            
+    except Exception as e:
+        logging.error(f"Error retrieving subscriptions for {email}: {e}")
+        return []
 
 def verify_unsubscribe_token(token):
+    """
+    Verify unsubscribe token and return subscription details
+    Updated to return user info instead of specific subscription
+    """
     try:
-        # First verify the token is decodable
-        serializer.loads(token)
-
-        # Look up the subscription in Supabase directly by token
-        response = supabase.table("subscriptions").select("*").eq("unsubscribe_token", token).execute()
-
-        if response.data:
-            return response.data[0]
-        else:
+        # Decode the token to get the email
+        data = serializer.loads(token)
+        email = data.get('email')
+        
+        if not email:
             return None
-
-    except (BadSignature, SignatureExpired):
-        logging.warning("Invalid or expired token")
-        return None
+        
+        # Return a dict with the email for compatibility
+        return {'email': email}
+        
     except Exception as e:
-        logging.exception("Error in verify_unsubscribe_token")
+        logging.error(f"Error verifying unsubscribe token: {e}")
         return None
