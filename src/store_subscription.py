@@ -77,7 +77,7 @@ def store_user_subscription(email, journals, keywords, frequency, start_date, en
             'end_date': end_date,
             'include_preprints': include_preprints,  # Boolean
             'active': True,
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.now().isoformat()            
         }
 
         # Insert into Supabase
@@ -101,6 +101,9 @@ def store_user_subscription(email, journals, keywords, frequency, start_date, en
             "status": "error",
             "message": f"Database error: {str(e)}"
         }
+
+
+
 
 def get_user_subscription(email):
     """Fetches a user's active subscription from the database."""

@@ -77,3 +77,16 @@ def get_csv_from_token(token):
         return None, None
     
 
+def get_next_update_timeframe(frequency):
+    """Convert frequency to human-readable timeframe"""
+    if frequency == "weekly":
+        return "1 week"
+    elif frequency == "monthly":
+        return "1 month"
+    elif frequency.startswith("every"):
+        days = frequency.split()[1]
+        return f"{days} days"
+    else:
+        return "as scheduled"
+
+

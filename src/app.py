@@ -16,14 +16,15 @@ from tracking_main import (
 
 import pandas as pd
 import os
+import io
+import logging
 from store_subscription import store_user_subscription
-from email_dispatcher import (generate_download_token, get_csv_from_token)
 
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, URLSafeTimedSerializer, BadSignature
 
-from email_dispatcher import send_email
+from email_dispatcher import send_email, generate_download_token, get_next_update_timeframe
 
 load_dotenv()
 
@@ -37,6 +38,69 @@ UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
 serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
 BASE_URL = "https://journaltracker.streamlit.app"
+
+# Search Execution Function
+
+def execute_subscription_search(journals, keywords, include_preprints, frequency):
+    """Execute search based on subscription parameters"""
+    # Calculate date range based on frequency
+    today = datetime.today().date()
+    
+    if frequency == "weekly":
+        days_back = 7
+    elif frequency == "monthly":
+        days_back = 30
+    elif frequency.startswith("every"):
+        # Extract number from "every X days"
+        days_back = int(frequency.split()[1])
+    else:
+        days_back = 7  # Default fallback
+    
+    start_date = str(today - timedelta(days=days_back))
+    end_date = str(today)
+    
+    all_articles = []
+    
+    try:
+        # Search PubMed journals
+        if journals:
+            for journal in journals:
+                articles = fetch_pubmed_articles_by_date(
+                    journal, start_date, end_date, 
+                    format_boolean_keywords_for_pubmed(keywords) if keywords else None
+                )
+                for article in articles:
+                    article["Journal"] = journal
+                    article["Source"] = "PubMed"
+                all_articles.extend(articles)
+        
+        # Search preprints
+        if include_preprints:
+            for server in ["biorxiv", "medrxiv"]:
+                preprints = fetch_preprints(
+                    server=server,
+                    start_date=start_date,
+                    end_date=end_date,
+                    keywords=keywords
+                )
+                for article in preprints:
+                    article["Journal"] = server
+                    article["Source"] = "Preprint"
+                all_articles.extend(preprints)
+        
+        if all_articles:
+            # Process results
+            all_articles = standardize_date_format(all_articles)
+            all_articles = standardize_doi_format(all_articles)
+            merged = merge_and_highlight_articles(all_articles, [], keywords)
+            return pd.DataFrame(merged)
+        else:
+            return pd.DataFrame()
+            
+    except Exception as e:
+        logging.error(f"Error in subscription search: {e}")
+        return pd.DataFrame()
+    
 
 # Streamlit app configuration
 st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
@@ -334,11 +398,25 @@ else:
             else:
                 formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)] if selected_journals else []
                 
-                # Create CSV data for download link
+                # Execute search immediately for subscription
                 if 'df' in locals() and not df.empty:
+                    # User just performed a search - use those results
                     csv_bytes = df.to_csv(index=False).encode("utf-8")
+                    has_results = True
                 else:
-                    csv_bytes = generate_placeholder_csv()
+                    # User is subscribing without searching - execute search now
+                    search_results = execute_subscription_search(
+                        journals=formatted_journals,
+                        keywords=raw_keywords,
+                        include_preprints=include_preprints,
+                        frequency=frequency
+                    )
+                    if search_results and not search_results.empty:
+                        csv_bytes = search_results.to_csv(index=False).encode("utf-8")
+                        has_results = True
+                    else:
+                        csv_bytes = None
+                        has_results = False
 
                 # Generate download token
                 download_token = generate_download_token(csv_bytes, subscriber_email)
@@ -357,7 +435,7 @@ else:
                 st.write("🛠️ Supabase insert result:", result)
 
                 if result["status"] == "success":
-                    # Generate unsubscribe token with email (for selective unsubscribe)
+                    # Generate unsubscribe token
                     unsubscribe_data = {
                         'email': subscriber_email,
                         'timestamp': datetime.now().isoformat()
@@ -365,44 +443,78 @@ else:
                     unsubscribe_token = serializer.dumps(unsubscribe_data)
                     unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
                     
-                    # Build comprehensive source list for email
+                    # Build source description
                     source_list = []
                     if formatted_journals:
                         source_list.extend(formatted_journals)
                     if include_preprints:
                         source_list.extend(['bioRxiv', 'medRxiv'])
-                    
                     source_description = ', '.join(source_list) if source_list else 'No sources selected'
 
-                    email_body = f"""Hi {subscriber_email},
+                    # Create email body based on whether we have results
+                    if has_results and csv_bytes:
+                        # Generate download token
+                        download_token = generate_download_token(csv_bytes, subscriber_email)
+                        download_link = f"{BASE_URL}?token={download_token}&action=download"
+                        
+                        # Calculate result count
+                        result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
+                        
+                        email_body = f"""Hi {subscriber_email},
 
-        You have successfully subscribed to automatic PubMed updates.
+                You have successfully subscribed to automatic PubMed updates.
 
-        📊 SUBSCRIPTION DETAILS:
-        📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-        📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-        🔍 All Sources: {source_description}
-        🔑 Keywords: {raw_keywords or 'None'}
-        🔁 Frequency: {frequency}
-        📅 Date Range: {start_date} to {end_date}
+                📊 SUBSCRIPTION DETAILS:
+                📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
+                📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
+                🔍 All Sources: {source_description}
+                🔑 Keywords: {raw_keywords or 'None'}
+                🔁 Frequency: {frequency}
 
-        📥 DOWNLOAD YOUR CURRENT RESULTS:
-        Your search results are available for download (expires in 24 hours):
-        🔗 {download_link}
+                📥 YOUR CURRENT RESULTS ({result_count} articles found):
+                Your search results are available for download (expires in 24 hours):
+                🔗 {download_link}
 
-        🔓 UNSUBSCRIBE:
-        If you wish to unsubscribe, click the link below:
-        {unsubscribe_link}
+                You will receive your next update in {get_next_update_timeframe(frequency)}.
 
-        – PubMed Tracker Team
-                    """
+                🔓 UNSUBSCRIBE:
+                {unsubscribe_link}
+
+                – PubMed Tracker Team
+                        """
+                    else:
+                        # No results found
+                        email_body = f"""Hi {subscriber_email},
+
+                You have successfully subscribed to automatic PubMed updates.
+
+                📊 SUBSCRIPTION DETAILS:
+                📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
+                📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
+                🔍 All Sources: {source_description}
+                🔑 Keywords: {raw_keywords or 'None'}
+                🔁 Frequency: {frequency}
+
+                📭 CURRENT SEARCH STATUS:
+                No articles found matching your criteria for the selected time period.
+
+                You will receive your next update in {get_next_update_timeframe(frequency)} (only if results are found).
+
+                🔓 UNSUBSCRIBE:
+                {unsubscribe_link}
+
+                – PubMed Tracker Team
+                        """
                     
                     try:
                         send_email(
                             to_email=subscriber_email,
-                            subject="📬 Journal Tracker: Subscription Confirmed",
+                            subject="📬 Journal Tracker: Subscription Confirmed" + (f" ({result_count} results)" if has_results else " (No results)"),
                             body=email_body
                         )
-                        st.success("✅ A confirmation email with download link has been sent.")
+                        if has_results:
+                            st.success("✅ Subscription confirmed! Email sent with your current search results.")
+                        else:
+                            st.success("✅ Subscription confirmed! Email sent (no current results found).")
                     except Exception as e:
                         st.warning(f"⚠️ Subscription saved, but email failed: {e}")
