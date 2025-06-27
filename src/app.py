@@ -411,7 +411,7 @@ else:
                         include_preprints=include_preprints,
                         frequency=frequency
                     )
-                    if search_results and not search_results.empty:
+                    if search_results is not None and not search_results.empty:
                         csv_bytes = search_results.to_csv(index=False).encode("utf-8")
                         has_results = True
                     else:
