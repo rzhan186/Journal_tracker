@@ -214,7 +214,7 @@ else:
                     progress_bar.progress(int((current_step / total_sources) * 80))
                     
                     try:
-                        articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, pubmed_keywords)
+                        articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
                         for article in articles:
                             article["Journal"] = journal
                         all_articles.extend(articles)
