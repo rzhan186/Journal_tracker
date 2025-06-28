@@ -399,6 +399,8 @@ else:
                 formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)] if selected_journals else []
                 
                 # Execute search immediately for subscription
+
+                # Execute search immediately for subscription
                 if 'df' in locals() and not df.empty:
                     # User just performed a search - use those results
                     csv_bytes = df.to_csv(index=False).encode("utf-8")
@@ -418,13 +420,7 @@ else:
                         csv_bytes = None
                         has_results = False
 
-                # Only generate download token if we have results
-                download_token = None
-                download_link = None
-                if has_results and csv_bytes is not None:
-                    download_token = generate_download_token(csv_bytes, subscriber_email)
-                    download_link = f"{BASE_URL}?token={download_token}&action=download"
-
+                # Store subscription first
                 result = store_user_subscription(
                     email=subscriber_email,
                     journals=formatted_journals,
@@ -456,30 +452,34 @@ else:
 
                     # Create email body based on whether we have results
                     if has_results and csv_bytes is not None:
+                        # Generate download token for results
+                        download_token = generate_download_token(csv_bytes, subscriber_email)
+                        download_link = f"{BASE_URL}?token={download_token}&action=download"
+                        
                         # Calculate result count
                         result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
                         
                         email_body = f"""Hi {subscriber_email},
 
-                You have successfully subscribed to automatic PubMed updates.
+You have successfully subscribed to automatic PubMed updates.
 
-                📊 SUBSCRIPTION DETAILS:
-                📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-                📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-                🔍 All Sources: {source_description}
-                🔑 Keywords: {raw_keywords or 'None'}
-                🔁 Frequency: {frequency}
+📊 SUBSCRIPTION DETAILS:
+📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
+📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
+🔍 All Sources: {source_description}
+🔑 Keywords: {raw_keywords or 'None'}
+🔁 Frequency: {frequency}
 
-                📥 YOUR CURRENT RESULTS ({result_count} articles found):
-                Your search results are available for download (expires in 24 hours):
-                🔗 {download_link}
+📥 YOUR CURRENT RESULTS ({result_count} articles found):
+Your search results are available for download (expires in 24 hours):
+🔗 {download_link}
 
-                You will receive your next update in {get_next_update_timeframe(frequency)}.
+You will receive your next update in {get_next_update_timeframe(frequency)}.
 
-                🔓 UNSUBSCRIBE:
-                {unsubscribe_link}
+🔓 UNSUBSCRIBE:
+{unsubscribe_link}
 
-                – PubMed Tracker Team
+– PubMed Tracker Team
                         """
                         
                         email_subject = f"📬 Journal Tracker: Subscription Confirmed ({result_count} results)"
@@ -487,24 +487,24 @@ else:
                         # No results found
                         email_body = f"""Hi {subscriber_email},
 
-                You have successfully subscribed to automatic PubMed updates.
+You have successfully subscribed to automatic PubMed updates.
 
-                📊 SUBSCRIPTION DETAILS:
-                📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-                📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-                🔍 All Sources: {source_description}
-                🔑 Keywords: {raw_keywords or 'None'}
-                🔁 Frequency: {frequency}
+📊 SUBSCRIPTION DETAILS:
+📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
+📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
+🔍 All Sources: {source_description}
+🔑 Keywords: {raw_keywords or 'None'}
+🔁 Frequency: {frequency}
 
-                📭 CURRENT SEARCH STATUS:
-                No articles found matching your criteria for the selected time period.
+📭 CURRENT SEARCH STATUS:
+No articles found matching your criteria for the selected time period.
 
-                You will receive your next update in {get_next_update_timeframe(frequency)} (only if results are found).
+You will receive your next update in {get_next_update_timeframe(frequency)} (only if results are found).
 
-                🔓 UNSUBSCRIBE:
-                {unsubscribe_link}
+🔓 UNSUBSCRIBE:
+{unsubscribe_link}
 
-                – PubMed Tracker Team
+– PubMed Tracker Team
                         """
                         
                         email_subject = "📬 Journal Tracker: Subscription Confirmed (No results)"
@@ -521,7 +521,8 @@ else:
                             st.success("✅ Subscription confirmed! Email sent (no current results found).")
                     except Exception as e:
                         st.warning(f"⚠️ Subscription saved, but email failed: {e}")
-                                
+
+
                 # # Execute search immediately for subscription
                 # if 'df' in locals() and not df.empty:
                 #     # User just performed a search - use those results
