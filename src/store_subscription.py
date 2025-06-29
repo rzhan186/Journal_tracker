@@ -55,7 +55,7 @@ serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 #         logging.exception("Error storing subscription")
 #         return {"status": "error", "message": str(e)}
     
-def store_user_subscription(email, journals, keywords, frequency, start_date, end_date, include_preprints=False):
+def store_user_subscription(email, journals, keywords, frequency, include_preprints=False):
     """
     Store user subscription with proper JSON handling
     """
