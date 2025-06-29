@@ -299,17 +299,45 @@ def format_boolean_keywords_for_pubmed(raw_query):
 # handles formatted Boolean queries
 def build_pubmed_query(journal, start_date, end_date, keywords=None):
     """Construct the PubMed query string, supporting Boolean keyword search."""
-    base_query = (
-        f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication]) '
-        f'AND ("journal article"[Publication Type] OR "review"[Publication Type]) '
-        f'NOT ("news"[Publication Type] OR "comment"[Publication Type] OR "editorial"[Publication Type])'
-    )
 
+    # Primary inclusion criteria - what we WANT
+    include_types = [
+        '"journal article"[Publication Type]',
+        '"review"[Publication Type]',
+        '"systematic review"[Publication Type]',
+        '"meta-analysis"[Publication Type]',
+        '"clinical trial"[Publication Type]',
+        '"randomized controlled trial"[Publication Type]',
+        '"comparative study"[Publication Type]',
+        '"multicenter study"[Publication Type]'
+    ]
+    
+    # Comprehensive exclusion criteria - what we DON'T want
+    exclude_types = [
+        '"news"[Publication Type]',
+        '"comment"[Publication Type]',
+        '"editorial"[Publication Type]',
+        '"letter"[Publication Type]'
+    ]
+    
+    # Build the base query
+    base_query = f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication])'
+    
+    # Add inclusion criteria (OR together)
+    inclusion_clause = f' AND ({" OR ".join(include_types)})'  # Added space
+    
+    # Add exclusion criteria (NOT each one)
+    exclusion_clause = f' NOT ({" OR ".join(exclude_types)})'
+
+    # Combine everything
+    full_query = base_query + inclusion_clause + exclusion_clause
+
+    # Add keywords if provided
     if keywords:
         keyword_clause = f' AND ({keywords})'
-        return base_query + keyword_clause
-    else:
-        return base_query
+        full_query += keyword_clause
+    
+    return full_query
 
 
 ######################################################################
