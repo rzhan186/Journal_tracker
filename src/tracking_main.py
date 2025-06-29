@@ -182,7 +182,8 @@ def format_journal_abbreviation(journal, journal_dict):
     manual_mappings = {
         # Lancet family
         "Lancet": "Lancet",
-        "The Lancet": "Lancet"
+        "The Lancet": "Lancet",
+        "BMJ": "BMJ"
         
         # Add more as needed...
     }
