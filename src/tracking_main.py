@@ -133,40 +133,121 @@ def load_pubmed_journal_abbreviations():
         return get_pubmed_journal_abbreviations()  # Fetch and save if file does not exist
 
 
+# def format_journal_abbreviation(journal, journal_dict):
+#     """
+#     Optimized function to validate and format a journal name or abbreviation for PubMed.
+#     - Uses sets and dictionaries for O(1) lookups to handle large datasets efficiently.
+#     - If a full name is given, retrieves and formats its abbreviation.
+#     - If an abbreviation is given, ensures proper formatting.
+#     - Provides suggestions for typos using fuzzy matching.
+#     """
+    
+#     # Preprocess the journal_dict into two sets for quick lookup
+#     full_names_set = set(journal_dict.values())
+#     abbreviations_set = set(journal_dict.keys())
+    
+#     # Check if input is a known abbreviation
+#     if journal in abbreviations_set:
+#         formatted_abbr = journal  # Use the abbreviation directly, no need to add a dot.
+#         print(f"✅ Found abbreviation. Using formatted abbreviation: {formatted_abbr}")
+#         return formatted_abbr
+
+#     # Check if input is a full journal name
+#     elif journal in full_names_set:
+#         abbr = [abbr for abbr, full_name in journal_dict.items() if full_name == journal][0]
+#         formatted_abbr = abbr  # Get the abbreviation directly without adding a dot
+#         print(f"✅ Found full name. Using abbreviation: {formatted_abbr}")
+#         return formatted_abbr
+
+#     # No exact match — try suggesting similar names
+#     possible_matches = difflib.get_close_matches(journal, list(full_names_set.union(abbreviations_set)), n=5, cutoff=0.6)
+    
+#     suggestion_msg = ""
+#     if possible_matches:
+#         suggestion_msg = "\n🛈 Did you mean: " + ", ".join(f"'{s}'" for s in possible_matches)
+
+#     raise ValueError(f"❌ Error: '{journal}' not found in PubMed journal list.{suggestion_msg}")
+
+
 def format_journal_abbreviation(journal, journal_dict):
     """
-    Optimized function to validate and format a journal name or abbreviation for PubMed.
-    - Uses sets and dictionaries for O(1) lookups to handle large datasets efficiently.
-    - If a full name is given, retrieves and formats its abbreviation.
-    - If an abbreviation is given, ensures proper formatting.
-    - Provides suggestions for typos using fuzzy matching.
+    Enhanced function to validate and format a journal name or abbreviation for PubMed.
+    - First checks manual mappings for common journals
+    - Then checks official PubMed list
+    - Finally tests the journal name directly with PubMed
+    - Provides suggestions for typos using fuzzy matching
     """
     
-    # Preprocess the journal_dict into two sets for quick lookup
-    full_names_set = set(journal_dict.values())
+    # Manual mappings for commonly searched journals
+    manual_mappings = {
+        # Lancet family
+        "Lancet": "Lancet",
+        "The Lancet": "Lancet"
+        
+        # Add more as needed...
+    }
+    
+    # Step 1: Check manual mappings first
+    if journal in manual_mappings:
+        formatted_abbr = manual_mappings[journal]
+        print(f"✅ Found in manual mappings. Using: {formatted_abbr}")
+        return formatted_abbr
+    
+    # Step 2: Check official PubMed list
     abbreviations_set = set(journal_dict.keys())
+    full_names_set = set(journal_dict.values())
     
     # Check if input is a known abbreviation
     if journal in abbreviations_set:
-        formatted_abbr = journal  # Use the abbreviation directly, no need to add a dot.
-        print(f"✅ Found abbreviation. Using formatted abbreviation: {formatted_abbr}")
+        formatted_abbr = journal
+        print(f"✅ Found abbreviation in official list. Using: {formatted_abbr}")
         return formatted_abbr
 
     # Check if input is a full journal name
-    elif journal in full_names_set:
+    if journal in full_names_set:
         abbr = [abbr for abbr, full_name in journal_dict.items() if full_name == journal][0]
-        formatted_abbr = abbr  # Get the abbreviation directly without adding a dot
-        print(f"✅ Found full name. Using abbreviation: {formatted_abbr}")
+        formatted_abbr = abbr
+        print(f"✅ Found full name in official list. Using abbreviation: {formatted_abbr}")
         return formatted_abbr
-
-    # No exact match — try suggesting similar names
-    possible_matches = difflib.get_close_matches(journal, list(full_names_set.union(abbreviations_set)), n=5, cutoff=0.6)
+    
+    # Step 3: Test directly with PubMed (for journals like "Lancet")
+    print(f"🔍 Testing '{journal}' directly with PubMed...")
+    
+    if test_journal_name_on_pubmed(journal):
+        print(f"✅ '{journal}' works directly with PubMed!")
+        return journal
+    
+    # Step 4: If nothing works, provide suggestions
+    all_possible_names = list(
+        full_names_set.union(abbreviations_set).union(manual_mappings.keys())
+    )
+    possible_matches = difflib.get_close_matches(journal, all_possible_names, n=5, cutoff=0.6)
     
     suggestion_msg = ""
     if possible_matches:
         suggestion_msg = "\n🛈 Did you mean: " + ", ".join(f"'{s}'" for s in possible_matches)
 
-    raise ValueError(f"❌ Error: '{journal}' not found in PubMed journal list.{suggestion_msg}")
+    raise ValueError(f"❌ Error: '{journal}' not found in any source.{suggestion_msg}")
+
+
+def test_journal_name_on_pubmed(journal_name):
+    """
+    Test if a journal name works directly with PubMed by doing a small search
+    """
+    try:
+        # Test with a recent date range and limit to 1 result
+        test_query = f'"{journal_name}"[Journal] AND ("2023/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
+        handle = Entrez.esearch(db="pubmed", term=test_query, retmax=1)
+        record = Entrez.read(handle)
+        handle.close()
+        
+        # If we get any results, the journal name works
+        return len(record["IdList"]) > 0
+        
+    except Exception as e:
+        # If there's an API error, assume the journal name doesn't work
+        return False
+
 
 
 ######################################################################
@@ -686,6 +767,25 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
     print(f"📁 Fetched {len(df)} articles and saved to {filename}")
 
 
+
+def test_lancet():
+    """Quick test for Lancet journal"""
+    test_query = '"Lancet"[Journal] AND ("2024/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
+    
+    try:
+        handle = Entrez.esearch(db="pubmed", term=test_query, retmax=5)
+        record = Entrez.read(handle)
+        handle.close()
+        
+        print(f"Found {len(record['IdList'])} Lancet articles in 2024")
+        return len(record["IdList"]) > 0
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+# Run this to test
+if __name__ == "__main__":
+    test_lancet()
 
 
 # More update update:

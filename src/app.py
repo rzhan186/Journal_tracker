@@ -3,6 +3,7 @@
 import streamlit as st
 from tracking_main import (
     fetch_pubmed_articles_by_date,
+    format_journal_abbreviation,
     fetch_preprints,
     load_pubmed_journal_abbreviations,
     format_boolean_keywords_for_pubmed,
@@ -39,8 +40,26 @@ serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
 BASE_URL = "https://journaltracker.streamlit.app"
 
-# Search Execution Function
 
+# function to validate journal selection
+def validate_and_format_journals(selected_journals):
+    """
+    Validate and format selected journals using the enhanced logic
+    """
+    journal_dict = load_pubmed_journal_abbreviations()
+    formatted_journals = []
+    
+    for journal in selected_journals:
+        try:
+            formatted_journal = format_journal_abbreviation(journal, journal_dict)
+            formatted_journals.append(formatted_journal)
+        except ValueError as e:
+            st.error(f"Journal validation error for '{journal}': {str(e)}")
+            return None
+    
+    return formatted_journals
+
+# Search Execution Function
 def execute_subscription_search(journals, keywords, include_preprints, frequency):
     """Execute search based on subscription parameters"""
     # Calculate date range based on frequency
@@ -171,8 +190,17 @@ else:
 
             # Only process journal validation if journals are selected
             # Process selected journals
+            
             # Use selected journals directly as a list
-            formatted_journals = list(selected_journals) if selected_journals else []
+            # formatted_journals = list(selected_journals) if selected_journals else []
+
+            # New code
+            if selected_journals:
+                formatted_journals = validate_and_format_journals(selected_journals)
+                if formatted_journals is None:  # Validation failed
+                    st.stop()
+            else:
+                formatted_journals = []
 
             # Validation
             if not formatted_journals and not include_preprints:
