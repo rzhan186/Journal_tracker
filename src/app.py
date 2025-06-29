@@ -190,7 +190,7 @@ else:
 
             # Only process journal validation if journals are selected
             # Process selected journals
-            
+
             # Use selected journals directly as a list
             # formatted_journals = list(selected_journals) if selected_journals else []
 
@@ -201,6 +201,7 @@ else:
                     st.stop()
             else:
                 formatted_journals = []
+
 
             # Validation
             if not formatted_journals and not include_preprints:

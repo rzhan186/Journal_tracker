@@ -767,25 +767,25 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
     print(f"📁 Fetched {len(df)} articles and saved to {filename}")
 
 
-
-def test_lancet():
-    """Quick test for Lancet journal"""
-    test_query = '"Lancet"[Journal] AND ("2024/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
+# Testing specific journals
+# def test_lancet():
+#     """Quick test for Lancet journal"""
+#     test_query = '"Lancet"[Journal] AND ("2024/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
     
-    try:
-        handle = Entrez.esearch(db="pubmed", term=test_query, retmax=5)
-        record = Entrez.read(handle)
-        handle.close()
+#     try:
+#         handle = Entrez.esearch(db="pubmed", term=test_query, retmax=5)
+#         record = Entrez.read(handle)
+#         handle.close()
         
-        print(f"Found {len(record['IdList'])} Lancet articles in 2024")
-        return len(record["IdList"]) > 0
-    except Exception as e:
-        print(f"Error: {e}")
-        return False
+#         print(f"Found {len(record['IdList'])} Lancet articles in 2024")
+#         return len(record["IdList"]) > 0
+#     except Exception as e:
+#         print(f"Error: {e}")
+#         return False
 
-# Run this to test
-if __name__ == "__main__":
-    test_lancet()
+# # Run this to test
+# if __name__ == "__main__":
+#     test_lancet()
 
 
 # More update update:
