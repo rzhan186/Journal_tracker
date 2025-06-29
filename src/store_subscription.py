@@ -73,11 +73,11 @@ def store_user_subscription(email, journals, keywords, frequency, start_date, en
             'journals': journals_list,  # This will be stored as JSON
             'keywords': keywords,
             'frequency': frequency,
-            'start_date': start_date,
-            'end_date': end_date,
+            #'start_date': start_date,
+            #'end_date': end_date,
             'include_preprints': include_preprints,  # Boolean
             'active': True,
-            'created_at': datetime.now().isoformat()            
+            'created_at': datetime.now().isoformat()    
         }
 
         # Insert into Supabase

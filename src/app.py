@@ -355,83 +355,22 @@ else:
             if 'progress_bar' in locals():
                 progress_bar.empty()
 
-    # # --- Subscribe toggle ---
-    # subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
-
-    # # Subscription section only renders when checked
-    # if subscribe:
-    #     col1, col2 = st.columns(2)
-    #     with col1:
-    #         freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
-    #     with col2:
-    #         subscriber_email = st.text_input("📧 Email to receive updates")
-
-    #     if freq_choice == "custom":
-    #         custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
-    #         frequency = f"every {custom_days} days"
-    #     else:
-    #         frequency = freq_choice
-
     # --- Subscribe toggle ---
     subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
     # Subscription section only renders when checked
     if subscribe:
-        st.subheader("📧 Subscribe for Updates")
+        col1, col2 = st.columns(2)
+        with col1:
+            freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
+        with col2:
+            subscriber_email = st.text_input("📧 Email to receive updates")
 
-        subscriber_email = st.text_input("📧 Your Email", key="subscriber_email")
-
-        frequency = st.selectbox(
-            "📅 How often would you like updates?",
-            ["Daily", "Weekly", "Custom (1 day)", "Custom (3 days)", "Custom (1 week)", "Custom (2 weeks)"],
-            key="subscribe_frequency"
-        )
-
-        # Automatic date calculation
-        frequency_mapping = {
-            "Daily": 1,
-            "Weekly": 7,
-            "Custom (1 day)": 1,
-            "Custom (3 days)": 3,
-            "Custom (1 week)": 7,
-            "Custom (2 weeks)": 14
-        }
-
-        days_back = frequency_mapping.get(frequency, 7)
-        today = datetime.now().date()
-        start_date = today - timedelta(days=days_back)
-        end_date = today
-
-        # Only show date inputs for custom frequencies (let users adjust if needed)
-        if frequency.startswith("Custom"):
-            with st.expander("📅 Adjust Date Range (Optional)", expanded=False):
-                start_date = st.date_input(
-                    "Start Date",
-                    value=start_date,
-                    key=f"sub_start_{hash(frequency)}"  # Hash ensures unique key per frequency
-                )
-                end_date = st.date_input(
-                    "End Date",
-                    value=end_date,
-                    key=f"sub_end_{hash(frequency)}"
-                )
-
-        # Show the active date range
-        st.write(f"🗓️ **Searching articles from:** {start_date} **to** {end_date} ({(end_date - start_date).days + 1} days)")
-
-        # Convert new frequency format to your existing format for backend compatibility
-        if frequency == "Daily":
-            freq_choice = "daily"
-            frequency = "daily"
-        elif frequency == "Weekly":
-            freq_choice = "weekly"
-            frequency = "weekly"
+        if freq_choice == "custom":
+            custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
+            frequency = f"every {custom_days} days"
         else:
-            # Custom frequencies - convert to your "every X days" format
-            freq_choice = "custom"
-            frequency = f"every {days_back} days"
-
-
+            frequency = freq_choice
 
         st.markdown("✅ Confirm your subscription")
 
@@ -484,8 +423,8 @@ else:
                     email=subscriber_email,
                     journals=formatted_journals,
                     keywords=raw_keywords,
-                    start_date=start_date,
-                    end_date=end_date,
+                    # start_date=start_date, # might now need these two parameters for now
+                    # end_date=end_date,
                     frequency=frequency,
                     include_preprints=include_preprints
                 )

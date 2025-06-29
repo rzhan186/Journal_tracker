@@ -669,8 +669,6 @@ def standardize_doi_format(articles):
     return articles
 
 
-
-
 ######################################################################
 # function to export the article list to csv file
 
