@@ -319,21 +319,9 @@ def build_pubmed_query(journal, start_date, end_date, keywords=None):
         '"editorial"[Publication Type]',
         '"letter"[Publication Type]'
     ]
-
-    # Alternative approach - more concise title filtering
-    exclude_title_wildcards = [
-        'NOT ("Editorial"[Title] OR "editorial"[Title])',
-        'NOT ("Comment"[Title] OR "comment"[Title])', 
-        'NOT ("News"[Title] OR "news"[Title])',
-        'NOT ("Letter"[Title] OR "letter"[Title])',
-        'NOT ("Correspondence"[Title] OR "correspondence"[Title])'
-    ]
-
-    # Then add to query:
-    title_exclusions = f' {" ".join(exclude_title_wildcards)}'
-        
-    # Build the base query
-    base_query = f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication])'
+    
+    # Build the base query with abstract requirement
+    base_query = f'"{journal}"[Journal] AND ("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication]) AND hasabstract[text]'
     
     # Add inclusion criteria (OR together)
     inclusion_clause = f' AND ({" OR ".join(include_types)})'
@@ -342,7 +330,7 @@ def build_pubmed_query(journal, start_date, end_date, keywords=None):
     exclusion_clause = f' NOT ({" OR ".join(exclude_types)})'
 
     # Combine everything
-    full_query = base_query + inclusion_clause + exclusion_clause + title_exclusions
+    full_query = base_query + inclusion_clause + exclusion_clause
 
     # Add keywords if provided
     if keywords:
