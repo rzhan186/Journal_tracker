@@ -355,22 +355,83 @@ else:
             if 'progress_bar' in locals():
                 progress_bar.empty()
 
+    # # --- Subscribe toggle ---
+    # subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
+
+    # # Subscription section only renders when checked
+    # if subscribe:
+    #     col1, col2 = st.columns(2)
+    #     with col1:
+    #         freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
+    #     with col2:
+    #         subscriber_email = st.text_input("📧 Email to receive updates")
+
+    #     if freq_choice == "custom":
+    #         custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
+    #         frequency = f"every {custom_days} days"
+    #     else:
+    #         frequency = freq_choice
+
     # --- Subscribe toggle ---
     subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
     # Subscription section only renders when checked
     if subscribe:
-        col1, col2 = st.columns(2)
-        with col1:
-            freq_choice = st.selectbox("🔁 Update Frequency", ["weekly", "monthly", "custom"])
-        with col2:
-            subscriber_email = st.text_input("📧 Email to receive updates")
+        st.subheader("📧 Subscribe for Updates")
 
-        if freq_choice == "custom":
-            custom_days = st.number_input("🔧 Custom interval (days):", min_value=1, step=1)
-            frequency = f"every {custom_days} days"
+        subscriber_email = st.text_input("📧 Your Email", key="subscriber_email")
+
+        frequency = st.selectbox(
+            "📅 How often would you like updates?",
+            ["Daily", "Weekly", "Custom (1 day)", "Custom (3 days)", "Custom (1 week)", "Custom (2 weeks)"],
+            key="subscribe_frequency"
+        )
+
+        # Automatic date calculation
+        frequency_mapping = {
+            "Daily": 1,
+            "Weekly": 7,
+            "Custom (1 day)": 1,
+            "Custom (3 days)": 3,
+            "Custom (1 week)": 7,
+            "Custom (2 weeks)": 14
+        }
+
+        days_back = frequency_mapping.get(frequency, 7)
+        today = datetime.now().date()
+        start_date = today - timedelta(days=days_back)
+        end_date = today
+
+        # Only show date inputs for custom frequencies (let users adjust if needed)
+        if frequency.startswith("Custom"):
+            with st.expander("📅 Adjust Date Range (Optional)", expanded=False):
+                start_date = st.date_input(
+                    "Start Date",
+                    value=start_date,
+                    key=f"sub_start_{hash(frequency)}"  # Hash ensures unique key per frequency
+                )
+                end_date = st.date_input(
+                    "End Date",
+                    value=end_date,
+                    key=f"sub_end_{hash(frequency)}"
+                )
+
+        # Show the active date range
+        st.write(f"🗓️ **Searching articles from:** {start_date} **to** {end_date} ({(end_date - start_date).days + 1} days)")
+
+        # Convert new frequency format to your existing format for backend compatibility
+        if frequency == "Daily":
+            freq_choice = "daily"
+            frequency = "daily"
+        elif frequency == "Weekly":
+            freq_choice = "weekly"
+            frequency = "weekly"
         else:
-            frequency = freq_choice
+            # Custom frequencies - convert to your "every X days" format
+            freq_choice = "custom"
+            frequency = f"every {days_back} days"
+
+
 
         st.markdown("✅ Confirm your subscription")
 
@@ -398,8 +459,6 @@ else:
             else:
                 formatted_journals = [full_to_abbrev.get(name) for name in selected_journals if full_to_abbrev.get(name)] if selected_journals else []
                 
-                # Execute search immediately for subscription
-
                 # Execute search immediately for subscription
                 if 'df' in locals() and not df.empty:
                     # User just performed a search - use those results
@@ -531,119 +590,3 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#                 result = store_user_subscription(
-#                     email=subscriber_email,
-#                     journals=formatted_journals,
-#                     keywords=raw_keywords,
-#                     start_date=start_date,
-#                     end_date=end_date,
-#                     frequency=frequency,
-#                     include_preprints=include_preprints
-#                 )
-#                 st.success(f"📬 Subscribed! You'll receive {frequency} updates at {subscriber_email}.")
-#                 st.write("🛠️ Supabase insert result:", result)
-
-#                 if result["status"] == "success":
-#                     # Generate unsubscribe token
-#                     unsubscribe_data = {
-#                         'email': subscriber_email,
-#                         'timestamp': datetime.now().isoformat()
-#                     }
-#                     unsubscribe_token = serializer.dumps(unsubscribe_data)
-#                     unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
-                    
-#                     # Build source description
-#                     source_list = []
-#                     if formatted_journals:
-#                         source_list.extend(formatted_journals)
-#                     if include_preprints:
-#                         source_list.extend(['bioRxiv', 'medRxiv'])
-#                     source_description = ', '.join(source_list) if source_list else 'No sources selected'
-
-#                     # Create email body based on whether we have results
-#                     if has_results and csv_bytes is not None:
-#                         # Generate download token for results
-#                         download_token = generate_download_token(csv_bytes, subscriber_email)
-#                         download_link = f"{BASE_URL}?token={download_token}&action=download"
-                        
-#                         # Calculate result count
-#                         result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
-                        
-#                         email_body = f"""Hi {subscriber_email},
-
-# You have successfully subscribed to automatic PubMed updates.
-
-# 📊 SUBSCRIPTION DETAILS:
-# 📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-# 📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-# 🔍 All Sources: {source_description}
-# 🔑 Keywords: {raw_keywords or 'None'}
-# 🔁 Frequency: {frequency}
-
-# 📥 YOUR CURRENT RESULTS ({result_count} articles found):
-# Your search results are available for download (expires in 24 hours):
-# 🔗 {download_link}
-
-# You will receive your next update in {get_next_update_timeframe(frequency)}.
-
-# 🔓 UNSUBSCRIBE:
-# {unsubscribe_link}
-
-# – PubMed Tracker Team
-#                         """
-                        
-#                         email_subject = f"📬 Journal Tracker: Subscription Confirmed ({result_count} results)"
-#                     else:
-#                         # No results found
-#                         email_body = f"""Hi {subscriber_email},
-
-# You have successfully subscribed to automatic PubMed updates.
-
-# 📊 SUBSCRIPTION DETAILS:
-# 📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-# 📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-# 🔍 All Sources: {source_description}
-# 🔑 Keywords: {raw_keywords or 'None'}
-# 🔁 Frequency: {frequency}
-
-# 📭 CURRENT SEARCH STATUS:
-# No articles found matching your criteria for the selected time period.
-
-# You will receive your next update in {get_next_update_timeframe(frequency)} (only if results are found).
-
-# 🔓 UNSUBSCRIBE:
-# {unsubscribe_link}
-
-# – PubMed Tracker Team
-#                         """
-                        
-#                         email_subject = "📬 Journal Tracker: Subscription Confirmed (No results)"
-                    
-#                     try:
-#                         send_email(
-#                             to_email=subscriber_email,
-#                             subject=email_subject,
-#                             body=email_body
-#                         )
-#                         if has_results:
-#                             st.success("✅ Subscription confirmed! Email sent with your current search results.")
-#                         else:
-#                             st.success("✅ Subscription confirmed! Email sent (no current results found).")
-#                     except Exception as e:
-#                         st.warning(f"⚠️ Subscription saved, but email failed: {e}")
