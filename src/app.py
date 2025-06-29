@@ -149,7 +149,15 @@ else:
 
     journal_dict = load_pubmed_journal_abbreviations()
     full_to_abbrev = {v: k for k, v in journal_dict.items()}
+
+    # Quick fix: Add missing journals
+    missing_journals = ["The Lancet", "BMJ"]
+    for journal in missing_journals:
+        if journal not in full_to_abbrev:
+            full_to_abbrev[journal] = journal
+
     journal_options = list(full_to_abbrev.keys())
+    journal_options.sort()
 
     email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
     
