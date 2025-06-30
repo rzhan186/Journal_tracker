@@ -564,7 +564,6 @@ else:
                 progress_bar.empty()
 
 
-
     # --- Subscribe toggle ---
     subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
 
@@ -731,21 +730,6 @@ else:
 
 # Add Footer
 st.markdown("---")
-
-# Minimal API Status (very unobtrusive)
-with st.expander("⚙️ API status", expanded=False):
-    from Bio import Entrez
-    state = st.session_state.rate_limit
-    recent_requests = len([t for t in state['request_times'] 
-                         if t > datetime.now() - timedelta(minutes=1)])
-    has_api_key = hasattr(Entrez, 'api_key') and Entrez.api_key
-    
-    st.caption(f"""
-    **API Status:** {'✅ Key Active' if has_api_key else '⚠️ No Key'} | 
-    **Session Searches:** {state['request_count']} | 
-    **Recent:** {recent_requests}/{rate_limiter.max_requests_per_minute} per minute
-    """)
-
 st.markdown(
     """
     <div style='text-align: center; color: #666; font-size: 0.8em; padding: 20px 0;'>
