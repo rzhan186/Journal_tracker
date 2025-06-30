@@ -47,9 +47,6 @@ if 'rate_limiter' not in st.session_state:
 
 rate_limiter = st.session_state.rate_limiter
 
-# Show usage stats in sidebar
-rate_limiter.show_usage_stats()
-
 # function to validate journal selection
 def validate_and_format_journals(selected_journals):
     """
@@ -474,7 +471,7 @@ else:
                                 # You'll need to adapt this part to work with the XML data
                                 # For now, let's use your existing function but add rate limiting
                                 articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords, rate_limiter)
-                                
+
                                 for article in articles:
                                     article["Journal"] = journal
                                 all_articles.extend(articles)
@@ -734,6 +731,30 @@ else:
 
 # Add Footer
 st.markdown("---")
+
+# Minimal API Status (very unobtrusive)
+with st.expander("⚙️ Technical Info", expanded=False):
+    from Bio import Entrez
+    state = st.session_state.rate_limit
+    recent_requests = len([t for t in state['request_times'] 
+                         if t > datetime.now() - timedelta(minutes=1)])
+    has_api_key = hasattr(Entrez, 'api_key') and Entrez.api_key
+    
+    st.caption(f"""
+    **API Status:** {'✅ Key Active' if has_api_key else '⚠️ No Key'} | 
+    **Session Searches:** {state['request_count']} | 
+    **Recent:** {recent_requests}/{rate_limiter.max_requests_per_minute} per minute
+    """)
+
+st.markdown(
+    """
+    <div style='text-align: center; color: #666; font-size: 0.8em; padding: 20px 0;'>
+        Please report issues to <a href='https://github.com/rzhan186/Journal_tracker/issues' target='_blank'>GitHub</a>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
 st.markdown(
     """
     <div style='text-align: center; color: #666; font-size: 0.8em; padding: 20px 0;'>

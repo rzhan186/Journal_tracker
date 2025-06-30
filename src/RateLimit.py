@@ -127,30 +127,31 @@ class PubMedRateLimit:
             st.error(f"❌ Fetch error: {str(e)}")
             return None
     
-    def show_usage_stats(self):
-        """Display current usage statistics"""
-        state = st.session_state.rate_limit
-        recent_requests = len([t for t in state['request_times'] 
-                             if t > datetime.now() - timedelta(minutes=1)])
+
+    # def show_usage_stats(self):
+    #     """Display current usage statistics"""
+    #     state = st.session_state.rate_limit
+    #     recent_requests = len([t for t in state['request_times'] 
+    #                          if t > datetime.now() - timedelta(minutes=1)])
         
-        # Check if API key is configured
-        has_api_key = hasattr(Entrez, 'api_key') and Entrez.api_key
-        api_status = "✅ API Key Active" if has_api_key else "⚠️ No API Key"
+    #     # Check if API key is configured
+    #     has_api_key = hasattr(Entrez, 'api_key') and Entrez.api_key
+    #     api_status = "✅ API Key Active" if has_api_key else "⚠️ No API Key"
         
-        st.sidebar.info(f"""
-        **🔍 PubMed API Status:**
-        {api_status}
+    #     st.sidebar.info(f"""
+    #     **🔍 PubMed API Status:**
+    #     {api_status}
         
-        **📊 Usage Stats:**
-        - Total searches: {state['request_count']}
-        - Last minute: {recent_requests}/{self.max_requests_per_minute}
-        - Rate limit: {self.max_requests_per_minute} requests/minute
+    #     **📊 Usage Stats:**
+    #     - Total searches: {state['request_count']}
+    #     - Last minute: {recent_requests}/{self.max_requests_per_minute}
+    #     - Rate limit: {self.max_requests_per_minute} requests/minute
         
-        **⚡ Performance:**
-        - Email: {Entrez.email}
-        - Tool: {Entrez.tool}
-        """)
+    #     **⚡ Performance:**
+    #     - Email: {Entrez.email}
+    #     - Tool: {Entrez.tool}
+    #     """)
         
-        # Show rate limit warning if getting close
-        if recent_requests >= (self.max_requests_per_minute * 0.8):  # 80% of limit
-            st.sidebar.warning("⚠️ Approaching rate limit!")
+    #     # Show rate limit warning if getting close
+    #     if recent_requests >= (self.max_requests_per_minute * 0.8):  # 80% of limit
+    #         st.sidebar.warning("⚠️ Approaching rate limit!")
