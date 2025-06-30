@@ -4,15 +4,12 @@
 from datetime import datetime
 from Bio import Entrez
 from calendar import monthrange
-
 import pandas as pd
 import re
 import requests
 import json
 import difflib
-
-# Set Entrez email
-Entrez.email = "rzhan186@gmail.com"
+import time
 
 ######################################################################
 # separate function for validating date inputs and checking the order.
@@ -169,7 +166,7 @@ def load_pubmed_journal_abbreviations():
 #     raise ValueError(f"❌ Error: '{journal}' not found in PubMed journal list.{suggestion_msg}")
 
 
-def format_journal_abbreviation(journal, journal_dict):
+def format_journal_abbreviation(journal, journal_dict, rate_limiter=None):
     """
     Enhanced function to validate and format a journal name or abbreviation for PubMed.
     - First checks manual mappings for common journals
@@ -213,7 +210,11 @@ def format_journal_abbreviation(journal, journal_dict):
     
     # Step 3: Test directly with PubMed (for journals like "Lancet")
     print(f"🔍 Testing '{journal}' directly with PubMed...")
-    
+        
+    if test_journal_name_on_pubmed(journal, rate_limiter):
+            print(f"✅ '{journal}' works directly with PubMed!")
+            return journal
+
     if test_journal_name_on_pubmed(journal):
         print(f"✅ '{journal}' works directly with PubMed!")
         return journal
@@ -231,19 +232,44 @@ def format_journal_abbreviation(journal, journal_dict):
     raise ValueError(f"❌ Error: '{journal}' not found in any source.{suggestion_msg}")
 
 
-def test_journal_name_on_pubmed(journal_name):
+# def test_journal_name_on_pubmed(journal_name):
+#     """
+#     Test if a journal name works directly with PubMed by doing a small search
+#     """
+#     try:
+#         # Test with a recent date range and limit to 1 result
+#         test_query = f'"{journal_name}"[Journal] AND ("2023/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
+#         handle = Entrez.esearch(db="pubmed", term=test_query, retmax=1)
+#         record = Entrez.read(handle)
+#         handle.close()
+        
+#         # If we get any results, the journal name works
+#         return len(record["IdList"]) > 0
+        
+#     except Exception as e:
+#         # If there's an API error, assume the journal name doesn't work
+#         return False
+    
+
+def test_journal_name_on_pubmed(journal_name, rate_limiter=None):
     """
     Test if a journal name works directly with PubMed by doing a small search
     """
     try:
         # Test with a recent date range and limit to 1 result
         test_query = f'"{journal_name}"[Journal] AND ("2023/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
-        handle = Entrez.esearch(db="pubmed", term=test_query, retmax=1)
-        record = Entrez.read(handle)
-        handle.close()
+        
+        if rate_limiter:
+            # Use the safe search method
+            record = rate_limiter.safe_pubmed_search(test_query, max_results=1)
+        else:
+            # Fallback to direct Entrez call
+            handle = Entrez.esearch(db="pubmed", term=test_query, retmax=1)
+            record = Entrez.read(handle)
+            handle.close()
         
         # If we get any results, the journal name works
-        return len(record["IdList"]) > 0
+        return record and len(record.get("IdList", [])) > 0
         
     except Exception as e:
         # If there's an API error, assume the journal name doesn't work
@@ -251,15 +277,35 @@ def test_journal_name_on_pubmed(journal_name):
 
 
 
+
+
+
 ######################################################################
 # create a separate function to fetch articles using the constructed query.
-def fetch_article_ids_from_pubmed(query):
-    """Fetch article IDs from PubMed based on the provided query."""
-    handle = Entrez.esearch(db="pubmed", term=query, retmax=1000, sort="pub date")
-    record = Entrez.read(handle)
-    handle.close()
+# def fetch_article_ids_from_pubmed(query):
+#     """Fetch article IDs from PubMed based on the provided query."""
+#     handle = Entrez.esearch(db="pubmed", term=query, retmax=1000, sort="pub date")
+#     record = Entrez.read(handle)
+#     handle.close()
 
-    return record["IdList"], len(record["IdList"])
+#     return record["IdList"], len(record["IdList"])
+
+def fetch_article_ids_from_pubmed(query, rate_limiter=None):
+    """Fetch article IDs from PubMed based on the provided query."""
+    
+    if rate_limiter:
+        # Use the safe search method
+        record = rate_limiter.safe_pubmed_search(query, max_results=1000)
+        if record:
+            return record["IdList"], len(record["IdList"])
+        else:
+            return [], 0
+    else:
+        # Fallback to direct Entrez call
+        handle = Entrez.esearch(db="pubmed", term=query, retmax=1000, sort="pub date")
+        record = Entrez.read(handle)
+        handle.close()
+        return record["IdList"], len(record["IdList"])
 
 
 ######################################################################
@@ -366,11 +412,11 @@ def parse_pubmed_article(paper_info):
 
 
 ######################################################################
-def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywords=None):
+def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywords=None, rate_limiter=None):
 
     # Load journal abbreviations
     journal_dict = load_pubmed_journal_abbreviations()
-    formatted_journal = format_journal_abbreviation(journal, journal_dict)
+    formatted_journal = format_journal_abbreviation(journal, journal_dict, rate_limiter)
 
     today = datetime.today()
     current_month = today.strftime("%Y-%m")
@@ -404,13 +450,11 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
     # Build the PubMed query
     query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
 
-    # ✅ Print the final query for verification
     print(f"\n🔍 Here is the final PubMed Query:\n{query}\n in case you are curious")
-
     print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date} using keywords {keywords}")
 
-    # Fetch article IDs
-    pmid_list, count = fetch_article_ids_from_pubmed(query)
+    # Fetch article IDs using rate limiter if available
+    pmid_list, count = fetch_article_ids_from_pubmed(query, rate_limiter)
     print("Fetched article IDs, proceeding to fetch article details...")
 
     papers = []
@@ -419,6 +463,31 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None,keywor
         return papers
 
     print(f"✅ {count} papers found.")
+
+    # Fetch details for each article
+    total_papers = len(pmid_list)
+
+    for index, pmid in enumerate(pmid_list):
+        print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
+        
+        if rate_limiter:
+            # Use safe fetch method
+            paper_xml = rate_limiter.safe_pubmed_fetch([pmid])
+            if paper_xml:
+                # You'll need to parse the XML here - this is more complex
+                # For now, fallback to direct method but with rate limiting
+                time.sleep(1)  # Manual delay
+                handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
+                paper_info = Entrez.read(handle)
+                handle.close()
+            else:
+                continue
+        else:
+            # Direct method
+            handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
+            paper_info = Entrez.read(handle)
+            handle.close()
+
 
     # Fetch details for each article
     total_papers = len(pmid_list)
@@ -815,9 +884,3 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
 # # Run this to test
 # if __name__ == "__main__":
 #     test_lancet()
-
-
-# More update update:
-    # prompty the user to enter an email address ➡️ implement this at the end
-    # prompt the user to indicate an export directory, export to current directory by defacult
-    # output publication date not aligned with the journal publication date. 

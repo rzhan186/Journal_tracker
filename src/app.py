@@ -20,6 +20,7 @@ import os
 import io
 import logging
 from store_subscription import store_user_subscription
+from RateLimit import PubMedRateLimit
 
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -40,6 +41,14 @@ serializer = URLSafeSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
 
 BASE_URL = "https://journaltracker.streamlit.app"
 
+# Initialize rate limiter
+if 'rate_limiter' not in st.session_state:
+    st.session_state.rate_limiter = PubMedRateLimit()
+
+rate_limiter = st.session_state.rate_limiter
+
+# Show usage stats in sidebar
+rate_limiter.show_usage_stats()
 
 # function to validate journal selection
 def validate_and_format_journals(selected_journals):
@@ -189,7 +198,214 @@ else:
         """)
 
     # Manual Search Button
+    # if st.button("🔍 Search"):
+    #     # Rate limiting check first
+    #     if not rate_limiter.can_make_request():
+    #         st.stop()  # This stops execution if rate limited
+
+    #     try:
+    #         # Modified validation - allow search if either journals are selected OR preprints are included
+    #         if not selected_journals and not include_preprints:
+    #             st.error("❌ Please select at least one journal or include preprints.")
+    #             st.stop()
+
+    #         # Only process journal validation if journals are selected
+    #         # Process selected journals
+    #         if selected_journals:
+    #             formatted_journals = validate_and_format_journals(selected_journals)
+    #             if formatted_journals is None:  # Validation failed
+    #                 st.stop()
+    #         else:
+    #             formatted_journals = []
+
+
+    #         # Validation
+    #         if not formatted_journals and not include_preprints:
+    #             st.error("❌ Please select at least one journal or enable preprints.")
+    #             st.stop()
+
+    #         # Validate keywords early if provided
+    #         if raw_keywords.strip():
+    #             if raw_keywords.count("(") != raw_keywords.count(")"):
+    #                 st.warning("⚠️ Unbalanced parentheses.")
+    #                 st.stop()
+    #             user_keywords = raw_keywords.strip()
+    #             compiled_filter = compile_keyword_filter(raw_keywords)
+    #             pubmed_keywords = format_boolean_keywords_for_pubmed(raw_keywords)
+    #             keywords = pubmed_keywords
+    #         else:
+    #             keywords = None
+
+    #         # Create placeholders for status updates
+    #         status_placeholder = st.empty()
+    #         progress_bar = st.progress(0)
+            
+    #         # Initialize search
+    #         status_placeholder.info("🚀 Starting search...")
+    #         progress_bar.progress(10)
+            
+    #         all_articles = []
+    #         total_journals = len(selected_journals) if selected_journals else 0
+    #         preprint_servers = ["biorxiv", "medrxiv"] if include_preprints else []
+    #         total_sources = total_journals + len(preprint_servers)
+            
+    #         current_step = 0
+            
+    #         # Search PubMed journals (only if journals are selected)
+    #         if selected_journals:
+    #             for i, journal in enumerate(selected_journals):
+    #                 current_step += 1
+    #                 status_placeholder.info(f"🔍 Searching {journal}... ({current_step}/{total_sources})")
+    #                 progress_bar.progress(int((current_step / total_sources) * 80))
+                    
+    #                 try:
+    #                     articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
+    #                     for article in articles:
+    #                         article["Journal"] = journal
+    #                     all_articles.extend(articles)
+                        
+    #                     # Show intermediate results
+    #                     if articles:
+    #                         status_placeholder.success(f"✅ Found {len(articles)} articles in {journal}")
+    #                     else:
+    #                         status_placeholder.info(f"📭 No articles found in {journal}")
+                            
+    #                 except Exception as e:
+    #                     st.error(f"❌ Error searching {journal}: {str(e)}")
+    #                     continue
+
+    #         # Search preprints if requested
+    #         if include_preprints:
+    #             for server in preprint_servers:
+    #                 current_step += 1
+    #                 status_placeholder.info(f"🔍 Searching {server} preprints... ({current_step}/{total_sources})")
+    #                 progress_bar.progress(int((current_step / total_sources) * 80))
+                    
+    #                 try:
+    #                     preprints = fetch_preprints(
+    #                         server=server,
+    #                         start_date=start_date,
+    #                         end_date=end_date,
+    #                         keywords=raw_keywords
+    #                     )
+    #                     for article in preprints:
+    #                         article["Journal"] = server
+    #                         article["Source"] = "Preprint"
+    #                     all_articles.extend(preprints)
+                        
+    #                     # Show intermediate results
+    #                     if preprints:
+    #                         status_placeholder.success(f"✅ Found {len(preprints)} preprints in {server}")
+    #                     else:
+    #                         status_placeholder.info(f"📭 No preprints found in {server}")
+                            
+    #                 except Exception as e:
+    #                     st.error(f"❌ Error searching {server}: {str(e)}")
+    #                     continue
+
+    #         # Finalize results
+    #         progress_bar.progress(90)
+    #         status_placeholder.info("📊 Processing results...")
+
+    #         if all_articles:
+    #             # Add Source field for PubMed articles
+    #             for article in all_articles:
+    #                 if "Source" not in article:
+    #                     article["Source"] = "PubMed"
+
+    #             # Standardize date formats before processing
+    #             all_articles = standardize_date_format(all_articles)
+    #             all_articles = standardize_doi_format(all_articles)
+                
+    #             merged = merge_and_highlight_articles(all_articles, [], raw_keywords)
+    #             df = pd.DataFrame(merged)
+                
+    #             progress_bar.progress(100)
+    #             status_placeholder.success(f"🎉 Search completed! Found {len(df)} articles total.")
+                
+    #             # Combined search details and results in a single expander
+    #             with st.expander("📊 Search Summary & Results", expanded=True):
+    #                 # Search parameters in a compact format
+    #                 col1, col2 = st.columns(2)
+    #                 with col1:
+    #                     st.write(f"**📘 Journals:** {', '.join(selected_journals[:2]) + ('...' if len(selected_journals) > 2 else '') if selected_journals else 'None'}")
+    #                     st.write(f"**📅 Date Range:** {start_date} to {end_date}")
+    #                 with col2:
+    #                     st.write(f"**🔑 Keywords:** {raw_keywords[:30] + '...' if len(raw_keywords) > 30 else raw_keywords if raw_keywords else 'None'}")
+    #                     st.write(f"**📑 Preprints:** {'Yes' if include_preprints else 'No'}")
+                    
+    #                 # Results breakdown
+    #                 st.write("---")
+    #                 st.write("**📈 Results by Source:**")
+                    
+    #                 col1, col2 = st.columns(2)
+    #                 with col1:
+    #                     if "Source" in df.columns:
+    #                         source_counts = df["Source"].value_counts()
+    #                         for source, count in source_counts.items():
+    #                             st.write(f"• **{source}:** {count} articles")
+                    
+    #                 with col2:
+    #                     if "Journal" in df.columns:
+    #                         journal_counts = df["Journal"].value_counts()
+    #                         st.write("**By Journal/Platform:**")
+    #                         for journal, count in journal_counts.head(5).items():  # Show top 5
+    #                             st.write(f"• {journal}: {count}")
+    #                         if len(journal_counts) > 5:
+    #                             st.write(f"• ... and {len(journal_counts) - 5} more")
+                    
+    #                 # Show PubMed query if applicable
+    #                 if keywords and selected_journals:
+    #                     with st.expander("🔍 Technical Details", expanded=False):
+    #                         query_preview = build_pubmed_query(
+    #                             journal=selected_journals[0],
+    #                             start_date=start_date,
+    #                             end_date=end_date,
+    #                             keywords=keywords
+    #                         )
+    #                         st.caption("🔧 Actual PubMed API query used for search:")
+    #                         st.code(query_preview, language="none")
+                
+    #             # Show sample results first
+    #             with st.expander("👀 Preview Results", expanded=False):
+    #                 st.dataframe(df.head(10))
+                
+    #             # Download button moved below preview
+    #             csv_data = df.to_csv(index=False).encode("utf-8")
+    #             st.download_button(
+    #                 label="📥 Download Results as CSV",
+    #                 data=csv_data,
+    #                 file_name=f"JournalTracker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+    #                 mime="text/csv"
+    #             )
+                
+    #         else:
+    #             progress_bar.progress(100)
+    #             status_placeholder.warning("📭 No articles found matching your criteria.")
+                
+    #             # Show suggestions
+    #             st.info("""
+    #             **No results found. Try:**
+    #             - Expanding your date range
+    #             - Using broader keywords
+    #             - Checking different journals
+    #             - Including preprints
+    #             """)
+
+    #     except Exception as e:
+    #         st.error(f"❌ Unexpected error: {e}")
+    #         # Clear progress indicators on error
+    #         if 'status_placeholder' in locals():
+    #             status_placeholder.empty()
+    #         if 'progress_bar' in locals():
+    #             progress_bar.empty()
+
+    # Manual Search Button with Rate Limiting
     if st.button("🔍 Search"):
+        # Rate limiting check first
+        if not rate_limiter.can_make_request():
+            st.stop()  # This stops execution if rate limited
+
         try:
             # Modified validation - allow search if either journals are selected OR preprints are included
             if not selected_journals and not include_preprints:
@@ -198,18 +414,12 @@ else:
 
             # Only process journal validation if journals are selected
             # Process selected journals
-
-            # Use selected journals directly as a list
-            # formatted_journals = list(selected_journals) if selected_journals else []
-
-            # New code
             if selected_journals:
                 formatted_journals = validate_and_format_journals(selected_journals)
                 if formatted_journals is None:  # Validation failed
                     st.stop()
             else:
                 formatted_journals = []
-
 
             # Validation
             if not formatted_journals and not include_preprints:
@@ -243,7 +453,7 @@ else:
             
             current_step = 0
             
-            # Search PubMed journals (only if journals are selected)
+            # Search PubMed journals (only if journals are selected) - WITH RATE LIMITING
             if selected_journals:
                 for i, journal in enumerate(selected_journals):
                     current_step += 1
@@ -251,22 +461,39 @@ else:
                     progress_bar.progress(int((current_step / total_sources) * 80))
                     
                     try:
-                        articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords)
-                        for article in articles:
-                            article["Journal"] = journal
-                        all_articles.extend(articles)
+                        # Use the safe search method from rate limiter
+                        query = build_pubmed_query(journal, start_date, end_date, keywords)
+                        search_results = rate_limiter.safe_pubmed_search(query, max_results=100)
                         
-                        # Show intermediate results
-                        if articles:
-                            status_placeholder.success(f"✅ Found {len(articles)} articles in {journal}")
+                        if search_results and search_results.get("IdList"):
+                            # Use safe fetch method for getting article details
+                            articles_xml = rate_limiter.safe_pubmed_fetch(search_results["IdList"])
+                            
+                            if articles_xml:
+                                # Your existing article processing logic
+                                # You'll need to adapt this part to work with the XML data
+                                # For now, let's use your existing function but add rate limiting
+                                articles = fetch_pubmed_articles_by_date(journal, start_date, end_date, keywords, rate_limiter)
+                                
+                                for article in articles:
+                                    article["Journal"] = journal
+                                all_articles.extend(articles)
+                                
+                                # Show intermediate results
+                                if articles:
+                                    status_placeholder.success(f"✅ Found {len(articles)} articles in {journal}")
+                                else:
+                                    status_placeholder.info(f"📭 No articles found in {journal}")
+                            else:
+                                status_placeholder.warning(f"⚠️ Failed to fetch details for {journal}")
                         else:
                             status_placeholder.info(f"📭 No articles found in {journal}")
-                            
+                                
                     except Exception as e:
                         st.error(f"❌ Error searching {journal}: {str(e)}")
                         continue
 
-            # Search preprints if requested
+            # Search preprints if requested (no rate limiting needed for preprints)
             if include_preprints:
                 for server in preprint_servers:
                     current_step += 1
@@ -295,6 +522,7 @@ else:
                         st.error(f"❌ Error searching {server}: {str(e)}")
                         continue
 
+            # Rest of your existing code remains the same...
             # Finalize results
             progress_bar.progress(90)
             status_placeholder.info("📊 Processing results...")
@@ -315,61 +543,7 @@ else:
                 progress_bar.progress(100)
                 status_placeholder.success(f"🎉 Search completed! Found {len(df)} articles total.")
                 
-                # Combined search details and results in a single expander
-                with st.expander("📊 Search Summary & Results", expanded=True):
-                    # Search parameters in a compact format
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**📘 Journals:** {', '.join(selected_journals[:2]) + ('...' if len(selected_journals) > 2 else '') if selected_journals else 'None'}")
-                        st.write(f"**📅 Date Range:** {start_date} to {end_date}")
-                    with col2:
-                        st.write(f"**🔑 Keywords:** {raw_keywords[:30] + '...' if len(raw_keywords) > 30 else raw_keywords if raw_keywords else 'None'}")
-                        st.write(f"**📑 Preprints:** {'Yes' if include_preprints else 'No'}")
-                    
-                    # Results breakdown
-                    st.write("---")
-                    st.write("**📈 Results by Source:**")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if "Source" in df.columns:
-                            source_counts = df["Source"].value_counts()
-                            for source, count in source_counts.items():
-                                st.write(f"• **{source}:** {count} articles")
-                    
-                    with col2:
-                        if "Journal" in df.columns:
-                            journal_counts = df["Journal"].value_counts()
-                            st.write("**By Journal/Platform:**")
-                            for journal, count in journal_counts.head(5).items():  # Show top 5
-                                st.write(f"• {journal}: {count}")
-                            if len(journal_counts) > 5:
-                                st.write(f"• ... and {len(journal_counts) - 5} more")
-                    
-                    # Show PubMed query if applicable
-                    if keywords and selected_journals:
-                        with st.expander("🔍 Technical Details", expanded=False):
-                            query_preview = build_pubmed_query(
-                                journal=selected_journals[0],
-                                start_date=start_date,
-                                end_date=end_date,
-                                keywords=keywords
-                            )
-                            st.caption("🔧 Actual PubMed API query used for search:")
-                            st.code(query_preview, language="none")
-                
-                # Show sample results first
-                with st.expander("👀 Preview Results", expanded=False):
-                    st.dataframe(df.head(10))
-                
-                # Download button moved below preview
-                csv_data = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="📥 Download Results as CSV",
-                    data=csv_data,
-                    file_name=f"JournalTracker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
+                # [Rest of your existing results display code...]
                 
             else:
                 progress_bar.progress(100)
@@ -391,6 +565,8 @@ else:
                 status_placeholder.empty()
             if 'progress_bar' in locals():
                 progress_bar.empty()
+
+
 
     # --- Subscribe toggle ---
     subscribe = st.checkbox("📬 Subscribe to automatic updates", key="subscribe_toggle")
