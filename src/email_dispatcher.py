@@ -45,7 +45,6 @@ def send_email(to_email, subject, body):
         logging.error(f"Failed to send email to {to_email}: {str(e)}")  # Improved error logging
         raise  # Reraise exception for further handling if needed
 
-
 ######################################################################
 # function to provide csv in the email
 

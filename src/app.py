@@ -168,8 +168,18 @@ else:
     email = st.text_input("📧 Enter your email (Optional):", help="Used for NCBI API compliance.")
     
     # Journal selection
-    selected_journals = st.multiselect("📘 Select journal(s) (Optional):", options=journal_options)
+    # selected_journals = st.multiselect("📘 Select journal(s) (Optional):", options=journal_options)
     
+    # Enhanced Journal selection with search functionality
+    st.write("📘 **Select journal(s)** (Optional):")
+    st.caption("💡 Tip: Start typing to search (e.g., 'Nature', 'Science', 'Cell')")
+
+    selected_journals = st.multiselect(
+        label="Type to search journals:",
+        options=journal_options,
+        help="Start typing the journal name to filter the list. You can select multiple journals."
+    )
+
     # Include preprints checkbox moved here
     include_preprints = st.checkbox("📑 Include preprints", help="Currently supports bioRxiv and medRxiv.")
 
