@@ -733,7 +733,7 @@ else:
 st.markdown("---")
 
 # Minimal API Status (very unobtrusive)
-with st.expander("⚙️ Technical Info", expanded=False):
+with st.expander("⚙️ API status", expanded=False):
     from Bio import Entrez
     state = st.session_state.rate_limit
     recent_requests = len([t for t in state['request_times'] 
@@ -745,15 +745,6 @@ with st.expander("⚙️ Technical Info", expanded=False):
     **Session Searches:** {state['request_count']} | 
     **Recent:** {recent_requests}/{rate_limiter.max_requests_per_minute} per minute
     """)
-
-st.markdown(
-    """
-    <div style='text-align: center; color: #666; font-size: 0.8em; padding: 20px 0;'>
-        Please report issues to <a href='https://github.com/rzhan186/Journal_tracker/issues' target='_blank'>GitHub</a>
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
 
 st.markdown(
     """
