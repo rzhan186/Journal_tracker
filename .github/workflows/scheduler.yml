@@ -7,19 +7,32 @@ on:
     - cron: '0 9 * * *'
   workflow_dispatch:
 
-# ✅ ADD: Required permissions for GitHub API access
 permissions:
   contents: read
   issues: write
-  actions: read
 
 env:
   PYTHON_VERSION: '3.13'
-  LOG_LEVEL: 'INFO'
 
 jobs:
   send-subscription-updates:  
     runs-on: ubuntu-latest
+    
+    # Job-level environment variables
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
+      BREVO_SENDER_NAME: ${{ secrets.BREVO_SENDER_NAME }}
+      DOWNLOAD_SECRET: ${{ secrets.DOWNLOAD_SECRET }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+    
+    outputs:
+      emails_sent: ${{ steps.run_scheduler.outputs.emails_sent }}
+      total_subscriptions: ${{ steps.run_scheduler.outputs.total_subscriptions }}
+      errors_count: ${{ steps.run_scheduler.outputs.errors_count }}
+      success: ${{ steps.run_scheduler.outputs.success }}
     
     steps:
     - name: Checkout code
@@ -29,258 +42,121 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Create logs directory
-      run: |
-        mkdir -p logs
-        echo "Scheduler started at $(date)" > logs/scheduler.log
-    
-    - name: Validate environment
-      run: |
-        echo "🔍 Validating environment..."
-        python -c "
-        import os
-        required_vars = [
-            'SUPABASE_URL', 'SUPABASE_KEY', 
-            'BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'BREVO_SENDER_NAME',
-            'DOWNLOAD_SECRET', 'UNSUBSCRIBE_SECRET'
-        ]
-        missing = [var for var in required_vars if not os.getenv(var)]
-        if missing:
-            print(f'❌ Missing environment variables: {missing}')
-            exit(1)
-        else:
-            print('✅ All environment variables present')
-        "
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
-        BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
-        BREVO_SENDER_NAME: ${{ secrets.BREVO_SENDER_NAME }}
-        DOWNLOAD_SECRET: ${{ secrets.DOWNLOAD_SECRET }}
-        UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
-    
     - name: Run subscription scheduler
-      id: scheduler
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
-        BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
-        BREVO_SENDER_NAME: ${{ secrets.BREVO_SENDER_NAME }}
-        DOWNLOAD_SECRET: ${{ secrets.DOWNLOAD_SECRET }}
-        UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
-        GITHUB_RUN_ID: ${{ github.run_id }}
-        GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      id: run_scheduler
       run: |
-        echo "🚀 Starting PubMed Subscription Scheduler..."
-        echo "📅 Run Date: $(date)"
-        echo "🔗 Run URL: $GITHUB_RUN_URL"
-        echo "=========================="
+        echo "🚀 Starting PubMed Subscription Scheduler at $(date)"
+        echo "🔗 Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         
+        mkdir -p logs
         cd src
-        python scheduler.py 2>&1 | tee ../logs/scheduler.log
         
-        # Capture exit code
-        exit_code=${PIPESTATUS[0]}
-        echo "scheduler_exit_code=$exit_code" >> $GITHUB_OUTPUT
-        
-        if [ $exit_code -eq 0 ]; then
+        # Run scheduler and capture output
+        if python scheduler.py 2>&1 | tee ../logs/scheduler.log; then
           echo "✅ Scheduler completed successfully"
+          echo "success=true" >> $GITHUB_OUTPUT
         else
-          echo "❌ Scheduler failed with exit code: $exit_code"
+          echo "❌ Scheduler failed"
+          echo "success=false" >> $GITHUB_OUTPUT
+          exit 1
         fi
         
-        exit $exit_code
-    
-    # ✅ FIXED: Better output handling
-    - name: Generate run summary
-      id: summary
-      if: always()
-      run: |
-        echo "📊 SCHEDULER RUN SUMMARY" >> logs/summary.txt
-        echo "========================" >> logs/summary.txt
-        echo "📅 Date: $(date)" >> logs/summary.txt
-        echo "🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> logs/summary.txt
-        echo "🏷️  Commit: ${{ github.sha }}" >> logs/summary.txt
-        echo "" >> logs/summary.txt
-        
-        # Initialize default values
-        total_subs="0"
-        processed="0"
-        sent="0"
-        errors="0"
-        
-        if [ -f logs/scheduler.log ]; then
-          # Extract key metrics from logs with better error handling
-          total_subs=$(grep -o "Found [0-9]* active subscriptions" logs/scheduler.log | grep -o "[0-9]*" | head -1 || echo "0")
-          
-          # Extract processed and sent numbers more carefully
-          if grep -q "Processing complete:" logs/scheduler.log; then
-            processed=$(grep "Processing complete:" logs/scheduler.log | grep -o "[0-9]* processed" | grep -o "[0-9]*" | head -1 || echo "0")
-            sent=$(grep "Processing complete:" logs/scheduler.log | grep -o "[0-9]* emails sent" | grep -o "[0-9]*" | head -1 || echo "0")
-          fi
-          
+        # Parse results from summary file (if your Python script creates one)
+        cd ..
+        if [ -f logs/summary.json ]; then
+          # Parse JSON summary
+          emails_sent=$(jq -r '.emails_sent // 0' logs/summary.json)
+          total_subs=$(jq -r '.total_subscriptions // 0' logs/summary.json)
+          errors=$(jq -r '.errors // 0' logs/summary.json)
+        else
+          # Fallback to log parsing (simplified)
+          emails_sent=$(grep -c "✅.*email sent" logs/scheduler.log || echo "0")
+          total_subs=$(grep -o "Found [0-9]*" logs/scheduler.log | head -1 || echo "0")
           errors=$(grep -c "❌\|ERROR" logs/scheduler.log || echo "0")
-          
-          echo "📈 RESULTS:" >> logs/summary.txt
-          echo "  • Total Subscriptions: $total_subs" >> logs/summary.txt
-          echo "  • Processed: $processed" >> logs/summary.txt
-          echo "  • Emails Sent: $sent" >> logs/summary.txt
-          echo "  • Errors: $errors" >> logs/summary.txt
-          echo "" >> logs/summary.txt
-          
-          # ✅ FIXED: Proper output format
-          {
-            echo "total_subscriptions=$total_subs"
-            echo "emails_sent=$sent"
-            echo "errors_count=$errors"
-            echo "processed_count=$processed"
-          } >> $GITHUB_OUTPUT
-          
-          # Show recent email sends
-          echo "📧 RECENT EMAILS SENT:" >> logs/summary.txt
-          grep "✅.*email sent to" logs/scheduler.log | tail -10 >> logs/summary.txt || echo "  No emails found in logs" >> logs/summary.txt
-          
-          # Show any errors
-          if [ "$errors" -gt 0 ]; then
-            echo "" >> logs/summary.txt
-            echo "❌ ERRORS:" >> logs/summary.txt
-            grep "❌\|ERROR" logs/scheduler.log | tail -5 >> logs/summary.txt
-          fi
-        else
-          echo "❌ No log file found" >> logs/summary.txt
-          {
-            echo "total_subscriptions=0"
-            echo "emails_sent=0"
-            echo "errors_count=1"
-            echo "processed_count=0"
-          } >> $GITHUB_OUTPUT
         fi
         
-        # Display summary
-        cat logs/summary.txt
+        echo "emails_sent=$emails_sent" >> $GITHUB_OUTPUT
+        echo "total_subscriptions=$total_subs" >> $GITHUB_OUTPUT
+        echo "errors_count=$errors" >> $GITHUB_OUTPUT
+        
+        echo "📊 Results: $total_subs subscriptions, $emails_sent emails sent, $errors errors"
     
-    - name: Upload scheduler logs
+    - name: Upload logs
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: scheduler-logs-${{ github.run_id }}
-        path: |
-          logs/
-          src/*.log
-        retention-days: 30
-        compression-level: 6
+        path: logs/
+        retention-days: 7
     
-    # ✅ FIXED: Better error handling for issue creation
-    - name: Create issue on failure
+    - name: Create failure issue
       if: failure()
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const fs = require('fs');
-          let summary = 'Log file not found';
+          const today = new Date().toISOString().split('T')[0];
+          const runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
           
-          try {
-            if (fs.existsSync('logs/summary.txt')) {
-              summary = fs.readFileSync('logs/summary.txt', 'utf8');
-            }
-          } catch (error) {
-            console.log('Could not read summary file:', error.message);
-            summary = `Error reading summary: ${error.message}`;
-          }
+          // Check for existing issue today
+          const { data: issues } = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: 'scheduler-failure',
+            state: 'open'
+          });
           
-          const issueBody = `## 🚨 Scheduler Failure Alert
+          const existingIssue = issues.find(issue => issue.title.includes(today));
           
-          **Run Details:**
-          - 📅 Date: ${new Date().toISOString()}
-          - 🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          - 🏷️ Commit: ${{ github.sha }}
-          - 👤 Actor: ${{ github.actor }}
+          const issueBody = `## 🚨 Scheduler Failure
           
-          **Summary:**
-          \`\`\`
-          ${summary}
-          \`\`\`
+          - **Date:** ${today}
+          - **Run:** ${runUrl}
+          - **Commit:** ${{ github.sha }}
           
-          **Next Steps:**
-          1. Check the [workflow logs](${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}})
-          2. Download the log artifacts for detailed analysis
-          3. Fix any issues and manually trigger the workflow if needed
+          Check the [workflow logs](${runUrl}) and downloaded artifacts for details.`;
           
-          **Auto-generated by GitHub Actions**`;
-          
-          try {
-            // Check if issue already exists for today
-            const today = new Date().toISOString().split('T')[0];
-            const existingIssues = await github.rest.issues.listForRepo({
+          if (!existingIssue) {
+            await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              labels: 'scheduler-failure',
-              state: 'open'
+              title: `🚨 Scheduler Failed - ${today}`,
+              body: issueBody,
+              labels: ['scheduler-failure', 'bug']
             });
-            
-            const todayIssue = existingIssues.data.find(issue => 
-              issue.title.includes(today)
-            );
-            
-            if (!todayIssue) {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `🚨 Scheduler Failed - ${today}`,
-                body: issueBody,
-                labels: ['scheduler-failure', 'bug', 'urgent']
-              });
-              console.log('✅ Created failure issue');
-            } else {
-              // Update existing issue
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: todayIssue.number,
-                body: `## Additional Failure\n\n${issueBody}`
-              });
-              console.log('✅ Updated existing failure issue');
-            }
-          } catch (error) {
-            console.log('❌ Failed to create/update issue:', error.message);
-            // Don't fail the workflow if issue creation fails
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: `## Additional Failure at ${new Date().toISOString()}\n\n${issueBody}`
+            });
           }
-    
-    - name: Log success metrics
-      if: success()
-      run: |
-        echo "✅ Scheduler completed successfully!"
-        echo "📊 Emails sent: ${{ steps.summary.outputs.emails_sent || '0' }}"
-        echo "📈 Processed: ${{ steps.summary.outputs.processed_count || '0' }}"
-        echo "📊 Check the summary above for detailed metrics"
 
-  # ✅ SIMPLIFIED: Health check job
+  # Simple health check
   health-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
     needs: send-subscription-updates
+    if: always() && github.event_name == 'schedule'
     steps:
-    - name: Daily health summary
+    - name: Report status
       run: |
-        echo "📋 DAILY HEALTH CHECK"
-        echo "===================="
-        echo "📅 Date: $(date)"
-        echo "✅ Scheduler Status: ${{ needs.send-subscription-updates.result }}"
-        echo "📧 Emails Sent: ${{ needs.send-subscription-updates.outputs.emails_sent || 'Unknown' }}"
-        echo "❌ Errors: ${{ needs.send-subscription-updates.outputs.errors_count || 'Unknown' }}"
-        echo ""
+        echo "📋 Daily Health Summary - $(date)"
+        echo "================================"
+        echo "Status: ${{ needs.send-subscription-updates.result }}"
+        echo "Emails sent: ${{ needs.send-subscription-updates.outputs.emails_sent }}"
+        echo "Total subscriptions: ${{ needs.send-subscription-updates.outputs.total_subscriptions }}"
+        echo "Errors: ${{ needs.send-subscription-updates.outputs.errors_count }}"
         
         if [ "${{ needs.send-subscription-updates.result }}" = "success" ]; then
-          echo "🎉 All systems operational!"
+          echo "🎉 System healthy!"
         else
-          echo "⚠️ Issues detected - check the logs"
+          echo "⚠️  Issues detected"
         fi
