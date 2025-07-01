@@ -1,15 +1,19 @@
-# # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
 name: PubMed Subscription Scheduler
 
 on:
   schedule:
-    # Run every 24 hours at 9:00 AM UTC
     - cron: '0 9 * * *'
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
+
+# ✅ ADD: Required permissions for GitHub API access
+permissions:
+  contents: read
+  issues: write
+  actions: read
 
 env:
-  # Global environment variables
   PYTHON_VERSION: '3.13'
   LOG_LEVEL: 'INFO'
 
@@ -31,13 +35,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    # ✅ NEW: Create logs directory
     - name: Create logs directory
       run: |
         mkdir -p logs
         echo "Scheduler started at $(date)" > logs/scheduler.log
     
-    # ✅ NEW: Pre-run validation
     - name: Validate environment
       run: |
         echo "🔍 Validating environment..."
@@ -64,7 +66,6 @@ jobs:
         DOWNLOAD_SECRET: ${{ secrets.DOWNLOAD_SECRET }}
         UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
     
-    # ✅ MAIN: Run subscription scheduler with enhanced logging
     - name: Run subscription scheduler
       id: scheduler
       env:
@@ -98,8 +99,9 @@ jobs:
         
         exit $exit_code
     
-    # ✅ NEW: Parse and summarize results
+    # ✅ FIXED: Better output handling
     - name: Generate run summary
+      id: summary
       if: always()
       run: |
         echo "📊 SCHEDULER RUN SUMMARY" >> logs/summary.txt
@@ -109,11 +111,22 @@ jobs:
         echo "🏷️  Commit: ${{ github.sha }}" >> logs/summary.txt
         echo "" >> logs/summary.txt
         
+        # Initialize default values
+        total_subs="0"
+        processed="0"
+        sent="0"
+        errors="0"
+        
         if [ -f logs/scheduler.log ]; then
-          # Extract key metrics from logs
-          total_subs=$(grep -o "Found [0-9]* active subscriptions" logs/scheduler.log | grep -o "[0-9]*" || echo "0")
-          processed=$(grep -o "processed, [0-9]* emails sent" logs/scheduler.log | grep -o "[0-9]*" | head -1 || echo "0")
-          sent=$(grep -o "processed, [0-9]* emails sent" logs/scheduler.log | grep -o "[0-9]*" | tail -1 || echo "0")
+          # Extract key metrics from logs with better error handling
+          total_subs=$(grep -o "Found [0-9]* active subscriptions" logs/scheduler.log | grep -o "[0-9]*" | head -1 || echo "0")
+          
+          # Extract processed and sent numbers more carefully
+          if grep -q "Processing complete:" logs/scheduler.log; then
+            processed=$(grep "Processing complete:" logs/scheduler.log | grep -o "[0-9]* processed" | grep -o "[0-9]*" | head -1 || echo "0")
+            sent=$(grep "Processing complete:" logs/scheduler.log | grep -o "[0-9]* emails sent" | grep -o "[0-9]*" | head -1 || echo "0")
+          fi
+          
           errors=$(grep -c "❌\|ERROR" logs/scheduler.log || echo "0")
           
           echo "📈 RESULTS:" >> logs/summary.txt
@@ -123,10 +136,13 @@ jobs:
           echo "  • Errors: $errors" >> logs/summary.txt
           echo "" >> logs/summary.txt
           
-          # Set outputs for later steps
-          echo "total_subscriptions=$total_subs" >> $GITHUB_OUTPUT
-          echo "emails_sent=$sent" >> $GITHUB_OUTPUT
-          echo "errors_count=$errors" >> $GITHUB_OUTPUT
+          # ✅ FIXED: Proper output format
+          {
+            echo "total_subscriptions=$total_subs"
+            echo "emails_sent=$sent"
+            echo "errors_count=$errors"
+            echo "processed_count=$processed"
+          } >> $GITHUB_OUTPUT
           
           # Show recent email sends
           echo "📧 RECENT EMAILS SENT:" >> logs/summary.txt
@@ -140,12 +156,17 @@ jobs:
           fi
         else
           echo "❌ No log file found" >> logs/summary.txt
+          {
+            echo "total_subscriptions=0"
+            echo "emails_sent=0"
+            echo "errors_count=1"
+            echo "processed_count=0"
+          } >> $GITHUB_OUTPUT
         fi
         
         # Display summary
         cat logs/summary.txt
     
-    # ✅ NEW: Upload logs (always runs)
     - name: Upload scheduler logs
       if: always()
       uses: actions/upload-artifact@v4
@@ -157,19 +178,23 @@ jobs:
         retention-days: 30
         compression-level: 6
     
-    # ✅ NEW: Create GitHub issue on failure
+    # ✅ FIXED: Better error handling for issue creation
     - name: Create issue on failure
       if: failure()
       uses: actions/github-script@v7
       with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
           let summary = 'Log file not found';
           
           try {
-            summary = fs.readFileSync('logs/summary.txt', 'utf8');
+            if (fs.existsSync('logs/summary.txt')) {
+              summary = fs.readFileSync('logs/summary.txt', 'utf8');
+            }
           } catch (error) {
             console.log('Could not read summary file:', error.message);
+            summary = `Error reading summary: ${error.message}`;
           }
           
           const issueBody = `## 🚨 Scheduler Failure Alert
@@ -178,6 +203,7 @@ jobs:
           - 📅 Date: ${new Date().toISOString()}
           - 🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           - 🏷️ Commit: ${{ github.sha }}
+          - 👤 Actor: ${{ github.actor }}
           
           **Summary:**
           \`\`\`
@@ -191,58 +217,56 @@ jobs:
           
           **Auto-generated by GitHub Actions**`;
           
-          // Check if issue already exists for today
-          const today = new Date().toISOString().split('T')[0];
-          const existingIssues = await github.rest.issues.listForRepo({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            labels: 'scheduler-failure',
-            state: 'open'
-          });
-          
-          const todayIssue = existingIssues.data.find(issue => 
-            issue.title.includes(today)
-          );
-          
-          if (!todayIssue) {
-            await github.rest.issues.create({
+          try {
+            // Check if issue already exists for today
+            const today = new Date().toISOString().split('T')[0];
+            const existingIssues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🚨 Scheduler Failed - ${today}`,
-              body: issueBody,
-              labels: ['scheduler-failure', 'bug', 'urgent']
+              labels: 'scheduler-failure',
+              state: 'open'
             });
-            console.log('Created failure issue');
-          } else {
-            // Update existing issue
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: todayIssue.number,
-              body: `## Additional Failure\n\n${issueBody}`
-            });
-            console.log('Updated existing failure issue');
+            
+            const todayIssue = existingIssues.data.find(issue => 
+              issue.title.includes(today)
+            );
+            
+            if (!todayIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 Scheduler Failed - ${today}`,
+                body: issueBody,
+                labels: ['scheduler-failure', 'bug', 'urgent']
+              });
+              console.log('✅ Created failure issue');
+            } else {
+              // Update existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: todayIssue.number,
+                body: `## Additional Failure\n\n${issueBody}`
+              });
+              console.log('✅ Updated existing failure issue');
+            }
+          } catch (error) {
+            console.log('❌ Failed to create/update issue:', error.message);
+            // Don't fail the workflow if issue creation fails
           }
     
-    # ✅ NEW: Success notification (optional - can be disabled)
     - name: Log success metrics
       if: success()
       run: |
         echo "✅ Scheduler completed successfully!"
+        echo "📊 Emails sent: ${{ steps.summary.outputs.emails_sent || '0' }}"
+        echo "📈 Processed: ${{ steps.summary.outputs.processed_count || '0' }}"
         echo "📊 Check the summary above for detailed metrics"
-        
-        # Optional: Send success webhook (uncomment if you want notifications)
-        # curl -X POST "YOUR_WEBHOOK_URL" \
-        #   -H "Content-Type: application/json" \
-        #   -d "{
-        #     \"text\": \"✅ PubMed Scheduler Success\",
-        #     \"details\": \"Emails sent: ${{ steps.scheduler.outputs.emails_sent || '0' }}\"
-        #   }"
 
-  # ✅ NEW: Optional daily health check job
+  # ✅ SIMPLIFIED: Health check job
   health-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' # Only run on scheduled triggers
+    if: github.event_name == 'schedule'
     needs: send-subscription-updates
     steps:
     - name: Daily health summary
