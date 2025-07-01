@@ -5,3 +5,4 @@ requests>=2.31.0
 pandas>=2.1.0
 biopython>=1.81
 itsdangerous>=2.1.2
+sib-api-v3-sdk>=7.6.0
