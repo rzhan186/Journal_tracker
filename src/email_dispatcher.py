@@ -7,6 +7,8 @@ import logging
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import streamlit as st
+import uuid
+from datetime import datetime, timedelta
 
 # Load secrets
 load_dotenv()
@@ -102,29 +104,117 @@ from itsdangerous import URLSafeTimedSerializer
 DOWNLOAD_SECRET = os.getenv("DOWNLOAD_SECRET")
 download_serializer = URLSafeTimedSerializer(DOWNLOAD_SECRET, salt="csv-download")
 
-def generate_download_token(csv_data, email):
-    """Generate a secure token for CSV download that expires in 24 hours"""
-    # Handle both bytes and string data
-    if isinstance(csv_data, str):
-        csv_data = csv_data.encode('utf-8')
+# def generate_download_token(csv_data, email):
+#     """Generate a secure token for CSV download that expires in 24 hours"""
+#     # Handle both bytes and string data
+#     if isinstance(csv_data, str):
+#         csv_data = csv_data.encode('utf-8')
     
-    payload = {
-        'csv_data': base64.b64encode(csv_data).decode('utf-8'),
-        'email': email,
-        'timestamp': datetime.now().isoformat()
-    }
-    return download_serializer.dumps(payload)
+#     payload = {
+#         'csv_data': base64.b64encode(csv_data).decode('utf-8'),
+#         'email': email,
+#         'timestamp': datetime.now().isoformat()
+#     }
+#     return download_serializer.dumps(payload)
+
+# def get_csv_from_token(token):
+#     """Retrieve CSV data from token (with 24-hour expiration)"""
+#     try:
+#         # Token expires after 24 hours (86400 seconds)
+#         payload = download_serializer.loads(token, max_age=86400)
+#         csv_data = base64.b64decode(payload['csv_data'].encode('utf-8'))
+#         return csv_data, payload['email']
+#     except Exception as e:
+#         logging.error(f"Failed to retrieve CSV from token: {str(e)}")
+#         return None, None
+
+def generate_download_token(csv_data, email):
+    """Generate a short token and store CSV data in subscription table"""
+    try:
+        # Handle both bytes and string data
+        if isinstance(csv_data, bytes):
+            csv_content = csv_data.decode('utf-8')
+        else:
+            csv_content = csv_data
+        
+        # Generate a short unique token
+        token = str(uuid.uuid4())[:16]  # Short 16-character token
+        
+        # Calculate expiration time (24 hours from now)
+        expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
+        
+        # Update the subscription record with CSV data and token
+        result = supabase.table('subscriptions').update({
+            'current_csv_data': csv_content,
+            'csv_token': token,
+            'csv_expires_at': expires_at
+        }).eq('email', email).execute()
+        
+        if result.data:
+            logging.info(f"✅ CSV download token generated: {token} for {email}")
+            return token
+        else:
+            logging.error(f"❌ Failed to store CSV download data for {email}")
+            return None
+            
+    except Exception as e:
+        logging.error(f"❌ Error generating download token: {str(e)}")
+        return None
 
 def get_csv_from_token(token):
-    """Retrieve CSV data from token (with 24-hour expiration)"""
+    """Retrieve CSV data from subscription table using token"""
     try:
-        # Token expires after 24 hours (86400 seconds)
-        payload = download_serializer.loads(token, max_age=86400)
-        csv_data = base64.b64decode(payload['csv_data'].encode('utf-8'))
-        return csv_data, payload['email']
+        # Query subscription table for the token
+        result = supabase.table('subscriptions').select('*').eq('csv_token', token).execute()
+        
+        if not result.data:
+            logging.error(f"❌ Token not found: {token}")
+            return None, None
+        
+        record = result.data[0]
+        
+        # Check if token has expired
+        if record.get('csv_expires_at'):
+            expires_at = datetime.fromisoformat(record['csv_expires_at'])
+            if datetime.now() > expires_at:
+                logging.error(f"❌ Token expired: {token}")
+                # Clear expired token and data
+                supabase.table('subscriptions').update({
+                    'csv_token': None,
+                    'current_csv_data': None,
+                    'csv_expires_at': None
+                }).eq('csv_token', token).execute()
+                return None, None
+        
+        csv_data = record.get('current_csv_data')
+        if not csv_data:
+            logging.error(f"❌ No CSV data found for token: {token}")
+            return None, None
+            
+        email = record['email']
+        
+        logging.info(f"✅ CSV data retrieved for token: {token}")
+        return csv_data.encode('utf-8'), email
+        
     except Exception as e:
-        logging.error(f"Failed to retrieve CSV from token: {str(e)}")
+        logging.error(f"❌ Error retrieving CSV from token: {str(e)}")
         return None, None
+
+def cleanup_expired_csv_tokens():
+    """Clean up expired CSV tokens and data"""
+    try:
+        current_time = datetime.now().isoformat()
+        result = supabase.table('subscriptions').update({
+            'csv_token': None,
+            'current_csv_data': None,
+            'csv_expires_at': None
+        }).lt('csv_expires_at', current_time).execute()
+        
+        if result.data:
+            logging.info(f"✅ Cleaned up {len(result.data)} expired CSV tokens")
+    except Exception as e:
+        logging.error(f"❌ Error cleaning up expired CSV tokens: {str(e)}")
+
 
 def get_next_update_timeframe(frequency):
     """Convert frequency to human-readable timeframe"""

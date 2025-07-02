@@ -136,11 +136,6 @@ if 'token' in st.query_params:
     token = st.query_params['token']
     action = st.query_params.get('action', 'unsubscribe')  # Default to unsubscribe
     
-    # Add debugging - REMOVE THIS AFTER FIXING
-    st.write("🔧 **Debug Information:**")
-    st.write(f"- Token (first 20 chars): {token[:20]}...")
-    st.write(f"- Action: {action}") 
-
     if action == 'download':
         # Handle CSV download
         from app_csv_downloader import handle_download
@@ -446,9 +441,6 @@ else:
                     subscription_data = result["data"]  # Get the subscription data
                     subscription_id = subscription_data["id"]  # Extract the ID
 
-                    # Add debugging
-                    st.write(f"🔧 Debug - Generated subscription ID: {subscription_id}")
-
                     # Generate proper unsubscribe token
                     unsubscribe_token = generate_unsubscribe_token(subscription_id)
                     
@@ -469,12 +461,21 @@ else:
                         source_list.extend(['bioRxiv', 'medRxiv'])
                     source_description = ', '.join(source_list) if source_list else 'No sources selected'
 
-                    # Create email body based on whether we have results
                     if has_results and csv_bytes is not None:
                         # Generate download token for results
-                        download_token = generate_download_token(csv_bytes, subscriber_email)
-                        download_link = f"{BASE_URL}?token={download_token}&action=download"
+                        download_token = generate_download_token(
+                            csv_bytes, 
+                            subscriber_email, 
+                            subscription_id=subscription_id  # Pass the subscription ID
+                        )
                         
+                        if download_token:
+                            download_link = f"{BASE_URL}?token={download_token}&action=download"
+                            # ... rest of your email code
+                        else:
+                            st.error("❌ Failed to generate download link")
+                            st.stop()
+
                         # Calculate result count
                         result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
                         
