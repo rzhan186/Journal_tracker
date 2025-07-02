@@ -128,8 +128,43 @@ download_serializer = URLSafeTimedSerializer(DOWNLOAD_SECRET, salt="csv-download
 #         logging.error(f"Failed to retrieve CSV from token: {str(e)}")
 #         return None, None
 
+# def generate_download_token(csv_data, email, subscription_id=None):
+#     """Generate a short token and store CSV data in existing subscriptions table"""
+#     try:
+#         # Handle both bytes and string data
+#         if isinstance(csv_data, bytes):
+#             csv_content = base64.b64encode(csv_data).decode('utf-8')
+#         elif isinstance(csv_data, str):
+#             csv_content = base64.b64encode(csv_data.encode('utf-8')).decode('utf-8')
+#         else:
+#             csv_content = base64.b64encode(str(csv_data).encode('utf-8')).decode('utf-8')
+        
+#         # Generate a short unique token
+#         token = str(uuid.uuid4()).replace('-', '')[:16]
+        
+#         # Calculate expiration time (24 hours from now)
+#         expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
+        
+#         # Update the subscription record with CSV data and token
+#         result = supabase.table('subscriptions').update({
+#             'csv_token': token,
+#             'csv_data': csv_content,
+#             'csv_expires_at': expires_at
+#         }).eq('email', email).execute()
+        
+#         if result.data:
+#             logging.info(f"✅ CSV download token generated: {token} for {email}")
+#             return token
+#         else:
+#             logging.error(f"❌ Failed to store CSV download data for {email}")
+#             return None
+            
+#     except Exception as e:
+#         logging.error(f"❌ Error generating download token: {str(e)}")
+#         return None
+
 def generate_download_token(csv_data, email, subscription_id=None):
-    """Generate a short token and store CSV data in existing subscriptions table"""
+    """Generate a timestamped token to avoid conflicts"""
     try:
         # Handle both bytes and string data
         if isinstance(csv_data, bytes):
@@ -139,24 +174,37 @@ def generate_download_token(csv_data, email, subscription_id=None):
         else:
             csv_content = base64.b64encode(str(csv_data).encode('utf-8')).decode('utf-8')
         
-        # Generate a short unique token
-        token = str(uuid.uuid4()).replace('-', '')[:16]
+        # Generate a unique token with timestamp
+        timestamp = int(datetime.now().timestamp())
+        base_token = str(uuid.uuid4()).replace('-', '')[:12]
+        token = f"{base_token}{timestamp}"[-16:]  # Keep it 16 chars
         
         # Calculate expiration time (24 hours from now)
         expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
         
-        # Update the subscription record with CSV data and token
-        result = supabase.table('subscriptions').update({
-            'csv_token': token,
-            'csv_data': csv_content,
-            'csv_expires_at': expires_at
-        }).eq('email', email).execute()
+        # Check if subscription exists and update with new token
+        if subscription_id:
+            # First, backup old token data if it exists and hasn't expired
+            existing = supabase.table('subscriptions').select('csv_token, csv_data, csv_expires_at').eq('id', subscription_id).execute()
+            
+            # Update with new token
+            result = supabase.table('subscriptions').update({
+                'csv_token': token,
+                'csv_data': csv_content,
+                'csv_expires_at': expires_at
+            }).eq('id', subscription_id).execute()
+        else:
+            result = supabase.table('subscriptions').update({
+                'csv_token': token,
+                'csv_data': csv_content,
+                'csv_expires_at': expires_at
+            }).eq('email', email).execute()
         
         if result.data:
             logging.info(f"✅ CSV download token generated: {token} for {email}")
             return token
         else:
-            logging.error(f"❌ Failed to store CSV download data for {email}")
+            logging.error(f"❌ Failed to store CSV download data: {result}")
             return None
             
     except Exception as e:
