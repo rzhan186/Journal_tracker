@@ -128,14 +128,16 @@ download_serializer = URLSafeTimedSerializer(DOWNLOAD_SECRET, salt="csv-download
 #         logging.error(f"Failed to retrieve CSV from token: {str(e)}")
 #         return None, None
 
-def generate_download_token(csv_data, email):
-    """Generate a short token and store CSV data in subscription table"""
+def generate_download_token(csv_data, email, subscription_id=None):
+    """Generate a secure token for CSV download that expires in 24 hours"""
     try:
         # Handle both bytes and string data
-        if isinstance(csv_data, bytes):
-            csv_content = csv_data.decode('utf-8')
+        if isinstance(csv_data, str):
+            csv_data = csv_data.encode('utf-8')
+        elif isinstance(csv_data, bytes):
+            pass  # Already bytes
         else:
-            csv_content = csv_data
+            csv_data = str(csv_data).encode('utf-8')
         
         # Generate a short unique token
         token = str(uuid.uuid4())[:16]  # Short 16-character token
@@ -143,24 +145,27 @@ def generate_download_token(csv_data, email):
         # Calculate expiration time (24 hours from now)
         expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
         
-        # Update the subscription record with CSV data and token
-        result = supabase.table('subscriptions').update({
-            'current_csv_data': csv_content,
-            'csv_token': token,
-            'csv_expires_at': expires_at
-        }).eq('email', email).execute()
+        # Store in downloads table (or use your preferred storage method)
+        result = supabase.table('csv_downloads').insert({
+            'token': token,
+            'subscription_id': subscription_id,  # This can be None
+            'csv_data': base64.b64encode(csv_data).decode('utf-8'),
+            'email': email,
+            'created_at': datetime.now().isoformat(),
+            'expires_at': expires_at
+        }).execute()
         
         if result.data:
-            logging.info(f"✅ CSV download token generated: {token} for {email}")
+            logging.info(f"✅ CSV download token generated: {token}")
             return token
         else:
-            logging.error(f"❌ Failed to store CSV download data for {email}")
+            logging.error("❌ Failed to store CSV download data")
             return None
             
     except Exception as e:
         logging.error(f"❌ Error generating download token: {str(e)}")
         return None
-
+    
 def get_csv_from_token(token):
     """Retrieve CSV data from subscription table using token"""
     try:
