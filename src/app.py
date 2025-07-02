@@ -19,7 +19,8 @@ import pandas as pd
 import os
 import io
 import logging
-from store_subscription import store_user_subscription
+from store_subscription import store_user_subscription, generate_unsubscribe_token
+
 from RateLimit import PubMedRateLimit
 
 from datetime import datetime, timedelta
@@ -135,6 +136,11 @@ if 'token' in st.query_params:
     token = st.query_params['token']
     action = st.query_params.get('action', 'unsubscribe')  # Default to unsubscribe
     
+    # Add debugging - REMOVE THIS AFTER FIXING
+    st.write("🔧 **Debug Information:**")
+    st.write(f"- Token (first 20 chars): {token[:20]}...")
+    st.write(f"- Action: {action}") 
+
     if action == 'download':
         # Handle CSV download
         from app_csv_downloader import handle_download
@@ -425,47 +431,54 @@ else:
 
                 # Store subscription first
 
-
-                # Store subscription first
                 result = store_user_subscription(
                     email=subscriber_email,
                     journals=formatted_journals,
                     keywords=raw_keywords,
+                    # start_date=start_date, # might now need these two parameters for now
+                    # end_date=end_date,
                     frequency=frequency,
                     include_preprints=include_preprints
                 )
 
-                if result:  # ✅ FIXED: Handle direct subscription data return
-                    # Import the token generation function
-                    from store_subscription import generate_unsubscribe_token
-                    
-                    # Get subscription ID from result
-                    subscription_id = result["id"]
-                    
+                if result["status"] == "success":
+
+                    subscription_data = result["data"]  # Get the subscription data
+                    subscription_id = subscription_data["id"]  # Extract the ID
+
+                    # Add debugging
+                    st.write(f"🔧 Debug - Generated subscription ID: {subscription_id}")
+
                     # Generate proper unsubscribe token
                     unsubscribe_token = generate_unsubscribe_token(subscription_id)
                     
+                    # Add debugging
+                    st.write(f"🔧 Debug - Generated token (first 20 chars): {unsubscribe_token[:20] if unsubscribe_token else 'None'}...")    
+
                     if unsubscribe_token:
                         unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
-                        
-                        # Build source description
-                        source_list = []
-                        if formatted_journals:
-                            source_list.extend(formatted_journals)
-                        if include_preprints:
-                            source_list.extend(['bioRxiv', 'medRxiv'])
-                        source_description = ', '.join(source_list) if source_list else 'No sources selected'
+                    else:
+                        st.error("❌ Failed to generate unsubscribe token")
+                        st.stop()
 
-                        # Create email body based on whether we have results
-                        if has_results and csv_bytes is not None:
-                            # Generate download token for results
-                            download_token = generate_download_token(csv_bytes, subscriber_email)
-                            download_link = f"{BASE_URL}?token={download_token}&action=download"
-                            
-                            # Calculate result count
-                            result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
-                            
-                            email_body = f"""Hi {subscriber_email},
+                    # Build source description
+                    source_list = []
+                    if formatted_journals:
+                        source_list.extend(formatted_journals)
+                    if include_preprints:
+                        source_list.extend(['bioRxiv', 'medRxiv'])
+                    source_description = ', '.join(source_list) if source_list else 'No sources selected'
+
+                    # Create email body based on whether we have results
+                    if has_results and csv_bytes is not None:
+                        # Generate download token for results
+                        download_token = generate_download_token(csv_bytes, subscriber_email)
+                        download_link = f"{BASE_URL}?token={download_token}&action=download"
+                        
+                        # Calculate result count
+                        result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
+                        
+                        email_body = f"""Hi {subscriber_email},
 
                 You have successfully subscribed to automatic PubMed updates.
 
@@ -486,13 +499,13 @@ else:
                 {unsubscribe_link}
 
                 – PubMed Tracker Team
-                            """
-                            
-                            email_subject = f"📬 Journal Tracker: Subscription Confirmed ({result_count} results)"
-                            success_message = f"✅ Subscription confirmed! {result_count} results sent to {subscriber_email}"
-                        else:
-                            # No results found
-                            email_body = f"""Hi {subscriber_email},
+                        """
+                        
+                        email_subject = f"📬 Journal Tracker: Subscription Confirmed ({result_count} results)"
+                        success_message = f"✅ Subscription confirmed! {result_count} results sent to {subscriber_email}"
+                    else:
+                        # No results found
+                        email_body = f"""Hi {subscriber_email},
 
                 You have successfully subscribed to automatic PubMed updates.
 
@@ -512,147 +525,34 @@ else:
                 {unsubscribe_link}
 
                 – PubMed Tracker Team
-                            """
-                            
-                            email_subject = "📬 Journal Tracker: Subscription Confirmed (No results)"
-                            success_message = f"✅ Subscription confirmed! Confirmation email sent to {subscriber_email}"
+                        """
                         
-                        try:
-                            # Send email
-                            send_email(
-                                to_email=subscriber_email,
-                                subject=email_subject,
-                                body=email_body,
-                                sender_email=BREVO_SENDER_EMAIL,
-                                sender_name=BREVO_SENDER_NAME,
-                                api_key=BREVO_API_KEY
-                            )
-                            st.success(success_message)
-                        except Exception as e:
-                            st.error(f"❌ Email sending failed: {e}")
-                    else:
-                        st.error("❌ Failed to generate unsubscribe token")
+                        email_subject = "📬 Journal Tracker: Subscription Confirmed (No results)"
+                        success_message = f"✅ Subscription confirmed! Confirmation email sent to {subscriber_email}"
+                    
+                    try:
+                        # ✅ UPDATED: Pass email configuration explicitly
+                        send_email(
+                            to_email=subscriber_email,
+                            subject=email_subject,
+                            body=email_body,
+                            sender_email=BREVO_SENDER_EMAIL,
+                            sender_name=BREVO_SENDER_NAME,
+                            api_key=BREVO_API_KEY
+                        )
+                        st.success(success_message)
+                    except Exception as e:
+                        st.error(f"❌ Subscription failed: {e}")
                 else:
-                    st.error("❌ Failed to create subscription")
+                    st.error(f"❌ Subscription failed: {result.get('message', 'Unknown error')}")
 
-
-#                 result = store_user_subscription(
-#                     email=subscriber_email,
-#                     journals=formatted_journals,
-#                     keywords=raw_keywords,
-#                     # start_date=start_date, # might now need these two parameters for now
-#                     # end_date=end_date,
-#                     frequency=frequency,
-#                     include_preprints=include_preprints
-#                 )
-
-#                 if result["status"] == "success":
-#                     from store_subscription import generate_unsubscribe_token
-
-#                     subscription_data = result["data"]  # Get the subscription data
-#                     subscription_id = subscription_data["id"]  # Extract the ID
-
-#                     # Generate proper unsubscribe token
-#                     unsubscribe_token = generate_unsubscribe_token(subscription_id)
-                    
-#                     if unsubscribe_token:
-#                         unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
-#                     else:
-#                         st.error("❌ Failed to generate unsubscribe token")
-#                         st.stop()
-
-#                     # Build source description
-#                     source_list = []
-#                     if formatted_journals:
-#                         source_list.extend(formatted_journals)
-#                     if include_preprints:
-#                         source_list.extend(['bioRxiv', 'medRxiv'])
-#                     source_description = ', '.join(source_list) if source_list else 'No sources selected'
-
-#                     # Create email body based on whether we have results
-#                     if has_results and csv_bytes is not None:
-#                         # Generate download token for results
-#                         download_token = generate_download_token(csv_bytes, subscriber_email)
-#                         download_link = f"{BASE_URL}?token={download_token}&action=download"
-                        
-#                         # Calculate result count
-#                         result_count = len(pd.read_csv(io.StringIO(csv_bytes.decode('utf-8'))))
-                        
-#                         email_body = f"""Hi {subscriber_email},
-
-#                 You have successfully subscribed to automatic PubMed updates.
-
-#                 📊 SUBSCRIPTION DETAILS:
-#                 📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-#                 📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-#                 🔍 All Sources: {source_description}
-#                 🔑 Keywords: {raw_keywords or 'None'}
-#                 🔁 Frequency: {frequency}
-
-#                 📥 YOUR CURRENT RESULTS ({result_count} articles found):
-#                 Your search results are available for download (expires in 24 hours):
-#                 🔗 {download_link}
-
-#                 You will receive your next update in {get_next_update_timeframe(frequency)}.
-
-#                 🔓 UNSUBSCRIBE:
-#                 {unsubscribe_link}
-
-#                 – PubMed Tracker Team
-#                         """
-                        
-#                         email_subject = f"📬 Journal Tracker: Subscription Confirmed ({result_count} results)"
-#                         success_message = f"✅ Subscription confirmed! {result_count} results sent to {subscriber_email}"
-#                     else:
-#                         # No results found
-#                         email_body = f"""Hi {subscriber_email},
-
-#                 You have successfully subscribed to automatic PubMed updates.
-
-#                 📊 SUBSCRIPTION DETAILS:
-#                 📘 Journals: {', '.join(formatted_journals) if formatted_journals else 'None'}
-#                 📑 Preprints: {('bioRxiv, medRxiv' if include_preprints else 'None')}
-#                 🔍 All Sources: {source_description}
-#                 🔑 Keywords: {raw_keywords or 'None'}
-#                 🔁 Frequency: {frequency}
-
-#                 📭 CURRENT SEARCH STATUS:
-#                 No articles found matching your criteria for the selected time period.
-
-#                 You will receive your next update in {get_next_update_timeframe(frequency)} (only if results are found).
-
-#                 🔓 UNSUBSCRIBE:
-#                 {unsubscribe_link}
-
-#                 – PubMed Tracker Team
-#                         """
-                        
-#                         email_subject = "📬 Journal Tracker: Subscription Confirmed (No results)"
-#                         success_message = f"✅ Subscription confirmed! Confirmation email sent to {subscriber_email}"
-                    
-#                     try:
-#                         # ✅ UPDATED: Pass email configuration explicitly
-#                         send_email(
-#                             to_email=subscriber_email,
-#                             subject=email_subject,
-#                             body=email_body,
-#                             sender_email=BREVO_SENDER_EMAIL,
-#                             sender_name=BREVO_SENDER_NAME,
-#                             api_key=BREVO_API_KEY
-#                         )
-#                         st.success(success_message)
-#                     except Exception as e:
-#                         st.error(f"❌ Subscription failed: {e}")
-#                 else:
-#                     st.error(f"❌ Subscription failed: {result.get('message', 'Unknown error')}")
-
-# # Add Footer
-# st.markdown("---")
-# st.markdown(
-#     """
-#     <div style='text-align: center; color: #666; font-size: 0.8em; padding: 20px 0;'>
-#         Please report issues to <a href='https://github.com/rzhan186/Journal_tracker/issues' target='_blank'>GitHub</a>
-#     </div>
-#     """, 
-#     unsafe_allow_html=True
-# )
+# Add Footer
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #666; font-size: 0.8em; padding: 20px 0;'>
+        Please report issues to <a href='https://github.com/rzhan186/Journal_tracker/issues' target='_blank'>GitHub</a>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)

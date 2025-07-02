@@ -264,20 +264,25 @@ def verify_unsubscribe_token(token):
         # Create serializer WITHOUT TimestampSigner (no expiration)
         serializer = URLSafeSerializer(secret_key)
         
-        # Decode the token
+        # Decode the token to get subscription_id
         subscription_id = serializer.loads(token)
+        logging.info(f"Decoded subscription ID: {subscription_id}")
         
         # Get subscription from database
-        response = supabase.table("subscriptions").select("*").eq("id", subscription_id).single().execute()
+        response = supabase.table("subscriptions").select("*").eq("id", subscription_id).execute()
         
-        if response.data:
-            return response.data
+        if response.data and len(response.data) > 0:
+            subscription_data = response.data[0]  # Get the first (and should be only) result
+            logging.info(f"Found subscription for email: {subscription_data.get('email', 'Unknown')}")
+            return subscription_data
         else:
-            logging.warning(f"No subscription found for token: {subscription_id}")
+            logging.warning(f"No subscription found for ID: {subscription_id}")
             return None
             
     except Exception as e:
         logging.error(f"Error verifying unsubscribe token: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         return None
 
 def generate_unsubscribe_token(subscription_id):
@@ -336,3 +341,4 @@ def deactivate_subscription(subscription_id):
     except Exception as e:
         logging.error(f"Error deactivating subscription {subscription_id}: {e}")
         return False
+    
