@@ -129,47 +129,44 @@ download_serializer = URLSafeTimedSerializer(DOWNLOAD_SECRET, salt="csv-download
 #         return None, None
 
 def generate_download_token(csv_data, email, subscription_id=None):
-    """Generate a secure token for CSV download that expires in 24 hours"""
+    """Generate a short token and store CSV data in existing subscriptions table"""
     try:
         # Handle both bytes and string data
-        if isinstance(csv_data, str):
-            csv_data = csv_data.encode('utf-8')
-        elif isinstance(csv_data, bytes):
-            pass  # Already bytes
+        if isinstance(csv_data, bytes):
+            csv_content = base64.b64encode(csv_data).decode('utf-8')
+        elif isinstance(csv_data, str):
+            csv_content = base64.b64encode(csv_data.encode('utf-8')).decode('utf-8')
         else:
-            csv_data = str(csv_data).encode('utf-8')
+            csv_content = base64.b64encode(str(csv_data).encode('utf-8')).decode('utf-8')
         
         # Generate a short unique token
-        token = str(uuid.uuid4())[:16]  # Short 16-character token
+        token = str(uuid.uuid4()).replace('-', '')[:16]
         
         # Calculate expiration time (24 hours from now)
         expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
         
-        # Store in downloads table (or use your preferred storage method)
-        result = supabase.table('csv_downloads').insert({
-            'token': token,
-            'subscription_id': subscription_id,  # This can be None
-            'csv_data': base64.b64encode(csv_data).decode('utf-8'),
-            'email': email,
-            'created_at': datetime.now().isoformat(),
-            'expires_at': expires_at
-        }).execute()
+        # Update the subscription record with CSV data and token
+        result = supabase.table('subscriptions').update({
+            'csv_token': token,
+            'csv_data': csv_content,
+            'csv_expires_at': expires_at
+        }).eq('email', email).execute()
         
         if result.data:
-            logging.info(f"✅ CSV download token generated: {token}")
+            logging.info(f"✅ CSV download token generated: {token} for {email}")
             return token
         else:
-            logging.error("❌ Failed to store CSV download data")
+            logging.error(f"❌ Failed to store CSV download data for {email}")
             return None
             
     except Exception as e:
         logging.error(f"❌ Error generating download token: {str(e)}")
         return None
-    
+
 def get_csv_from_token(token):
-    """Retrieve CSV data from subscription table using token"""
+    """Retrieve CSV data from subscriptions table using token"""
     try:
-        # Query subscription table for the token
+        # Query subscriptions table for the token
         result = supabase.table('subscriptions').select('*').eq('csv_token', token).execute()
         
         if not result.data:
@@ -186,20 +183,22 @@ def get_csv_from_token(token):
                 # Clear expired token and data
                 supabase.table('subscriptions').update({
                     'csv_token': None,
-                    'current_csv_data': None,
+                    'csv_data': None,
                     'csv_expires_at': None
                 }).eq('csv_token', token).execute()
                 return None, None
         
-        csv_data = record.get('current_csv_data')
+        csv_data = record.get('csv_data')
         if not csv_data:
             logging.error(f"❌ No CSV data found for token: {token}")
             return None, None
             
+        # Decode the CSV data
+        decoded_csv = base64.b64decode(csv_data.encode('utf-8'))
         email = record['email']
         
         logging.info(f"✅ CSV data retrieved for token: {token}")
-        return csv_data.encode('utf-8'), email
+        return decoded_csv, email
         
     except Exception as e:
         logging.error(f"❌ Error retrieving CSV from token: {str(e)}")
