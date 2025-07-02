@@ -179,8 +179,6 @@
 #         logging.error(f"Error generating unsubscribe token: {e}")
 #         return None
 
-
-import streamlit as st
 from supabase import create_client
 import os
 from dotenv import load_dotenv
@@ -213,14 +211,27 @@ def store_user_subscription(email, journals, keywords, frequency, include_prepri
         response = supabase.table("subscriptions").insert(subscription_data).execute()
         
         if response.data:
-            return response.data[0]  # Return the created subscription
+            # ✅ RETURN: Consistent format with status
+            return {
+                "status": "success",
+                "data": response.data[0],  # The created subscription
+                "message": "Subscription created successfully"
+            }
         else:
             logging.error("Failed to store subscription")
-            return None
+            return {
+                "status": "error",
+                "data": None,
+                "message": "Failed to store subscription"
+            }
             
     except Exception as e:
         logging.error(f"Error storing subscription: {e}")
-        return None
+        return {
+            "status": "error",
+            "data": None,
+            "message": f"Error storing subscription: {str(e)}"
+        }
 
 def get_user_subscriptions_by_email(email):
     """Get all active subscriptions for a user by email"""
