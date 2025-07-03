@@ -337,7 +337,52 @@ else:
                 progress_bar.progress(100)
                 status_placeholder.success(f"🎉 Search completed! Found {len(df)} articles total.")
                 
-                # [Rest of your existing results display code...]
+                # Display results
+                if not df.empty:
+                    # Show summary
+                    st.markdown(f"### 📊 Search Results ({len(df)} articles)")
+                    
+                    # Display the DataFrame
+                    st.dataframe(df, use_container_width=True)
+                    
+                    # Add download button
+                    csv_buffer = io.BytesIO()
+                    csv_content = df.to_csv(index=False)
+                    csv_buffer.write(csv_content.encode())
+                    csv_buffer.seek(0)
+                    
+                    st.download_button(
+                        label="📥 Download Results as CSV",
+                        data=csv_buffer.getvalue(),
+                        file_name=f"journal_tracker_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        help="Download your search results as a CSV file"
+                    )
+                    
+                    # Optional: Show first few results as preview
+                    if len(df) > 0:
+                        st.markdown("### 📋 Preview (First 3 Results)")
+                        preview_df = df.head(3)
+                        for idx, row in preview_df.iterrows():
+                            with st.expander(f"📄 {row.get('Title', 'No Title')}", expanded=False):
+                                st.write(f"**Journal:** {row.get('Journal', 'N/A')}")
+                                st.write(f"**Publication Date:** {row.get('Publication Date', 'N/A')}")
+                                st.write(f"**Abstract:** {row.get('Abstract', 'N/A')[:300]}...")
+                                if row.get('DOI', 'N/A') != 'N/A':
+                                    st.write(f"**DOI:** {row.get('DOI', 'N/A')}")
+                else:
+                    # This section should already be working from your existing code
+                    progress_bar.progress(100)
+                    status_placeholder.warning("📭 No articles found matching your criteria.")
+                    
+                    # Show suggestions
+                    st.info("""
+                    **No results found. Try:**
+                    - Expanding your date range
+                    - Using broader keywords
+                    - Checking different journals
+                    - Including preprints
+                    """)
                 
             else:
                 progress_bar.progress(100)
