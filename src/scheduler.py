@@ -55,17 +55,39 @@ def is_subscription_due(subscription):
             # Never sent before - send now
             return True
         
-        # Parse last sent date
-        last_sent_date = datetime.fromisoformat(last_sent.replace('Z', '+00:00'))
+        # Parse last sent date - handle different formats
+        if isinstance(last_sent, str):
+            # Remove timezone info if present
+            last_sent_clean = last_sent.replace('Z', '+00:00')
+            try:
+                last_sent_date = datetime.fromisoformat(last_sent_clean)
+            except ValueError:
+                # Try parsing as date only
+                last_sent_date = datetime.strptime(last_sent[:10], '%Y-%m-%d')
+        else:
+            return True  # If format is unexpected, send
+        
+        # Convert to UTC if needed
+        if last_sent_date.tzinfo is None:
+            last_sent_date = last_sent_date.replace(tzinfo=timezone.utc)
+        
+        current_time = datetime.now(timezone.utc)
         days_interval = get_days_from_frequency(frequency)
         
         # Check if enough time has passed
         next_send = last_sent_date + timedelta(days=days_interval)
-        return datetime.now() >= next_send
+        is_due = current_time >= next_send
+        
+        # Add logging for debugging
+        logging.info(f"Subscription {subscription['id']} - Last sent: {last_sent_date}, "
+                    f"Next due: {next_send}, Currently due: {is_due}")
+        
+        return is_due
         
     except Exception as e:
         logging.error(f"Error checking subscription due date: {e}")
-        return False
+        return False  # Don't send if we can't determine
+    
 
 def execute_search_for_subscription(subscription):
     """Execute search based on subscription parameters"""
@@ -125,70 +147,6 @@ def execute_search_for_subscription(subscription):
         logging.error(f"Error executing search for subscription {subscription['id']}: {e}")
         return pd.DataFrame()
 
-# def send_subscription_email(subscription, results_df):
-#     """Send subscription update email"""
-#     try:
-#         email = subscription['email']
-        
-#         # Generate unsubscribe link (you'll need to import your serializer)
-#         from itsdangerous import URLSafeTimedSerializer
-        
-#         UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
-#         serializer = URLSafeTimedSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
-        
-#         unsubscribe_data = {
-#             'email': email,
-#             'timestamp': datetime.now().isoformat()
-#         }
-#         unsubscribe_token = serializer.dumps(unsubscribe_data)
-#         unsubscribe_link = f"{BASE_URL}?token={unsubscribe_token}"
-        
-#         # Prepare email content
-#         journals = subscription.get('journals', [])
-#         keywords = subscription.get('keywords', 'None')
-#         include_preprints = subscription.get('include_preprints', False)
-#         frequency = subscription.get('frequency', 'weekly')
-        
-#         if not results_df.empty:
-#             # Generate CSV and download link
-#             csv_bytes = results_df.to_csv(index=False).encode("utf-8")
-#             download_token = generate_download_token(csv_bytes, email)
-#             download_link = f"{BASE_URL}?token={download_token}&action=download"
-#             result_count = len(results_df)
-            
-#             subject = f"📬 Journal Tracker: {result_count} New Articles Found"
-            
-#             email_body = f"""Hi {email},
-
-# Your {frequency} PubMed update is ready!
-
-# 📊 SEARCH PARAMETERS:
-# 📘 Journals: {', '.join(journals) if journals else 'None'}
-# 📑 Preprints: {'bioRxiv, medRxiv' if include_preprints else 'None'}
-# 🔑 Keywords: {keywords}
-
-# 📥 YOUR RESULTS ({result_count} articles found):
-# Download your results (expires in 24 hours):
-# 🔗 {download_link}
-
-# 🔓 UNSUBSCRIBE: {unsubscribe_link}
-
-# – PubMed Tracker Team
-#             """
-#         else:
-#             # No results found - don't send email
-#             logging.info(f"No results for {email}, skipping email")
-#             return False
-        
-#         # Send email
-#         send_email(email, subject, email_body)
-#         logging.info(f"Subscription email sent to {email}")
-#         return True
-        
-#     except Exception as e:
-#         logging.error(f"Error sending subscription email: {e}")
-#         return False
-
 def send_subscription_email(subscription, results_df):
     """Send subscription update email with improved formatting and error handling"""
     try:
@@ -225,36 +183,23 @@ def send_subscription_email(subscription, results_df):
             subject = f"📚 Journal Tracker: {result_count} New Article{'s' if result_count != 1 else ''} Found"
             
             # ✅ IMPROVED: Professional HTML-formatted email
-            email_body = f"""Hello!
+            email_body = f"""Hi {email},
 
-Your {frequency} Journal Tracker update is ready with {result_count} new article{'s' if result_count != 1 else ''}.
+Your {frequency} PubMed update is ready!
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 SUBSCRIPTION DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📘 Journals: {', '.join(journals) if journals else 'None selected'}
+📊 SEARCH PARAMETERS:
+📘 Journals: {', '.join(journals) if journals else 'None'}
 📑 Preprints: {'bioRxiv, medRxiv' if include_preprints else 'None'}
-🔍 Keywords: {keywords if keywords and keywords != 'None' else 'None'}
-🔄 Frequency: {frequency.title()}
+🔑 Keywords: {keywords}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📥 YOUR RESULTS ({result_count} articles)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Your research articles are ready for download:
+📥 YOUR RESULTS ({result_count} articles found):
+Download your results (expires in 24 hours):
 🔗 {download_link}
 
-⏰ Download expires in 24 hours
+🔓 UNSUBSCRIBE: {unsubscribe_link}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📧 Questions? Reply to this email
-🔓 Unsubscribe: {unsubscribe_link}
-
-Best regards,
-The Journal Tracker Team
-journaltracker.site"""
+– PubMed Tracker Team
+            """
 
             # ✅ IMPROVED: Better error handling for email sending
             try:
@@ -289,47 +234,6 @@ def update_subscription_last_sent(subscription_id):
         
     except Exception as e:
         logging.error(f"Error updating last_sent: {e}")
-
-# def process_due_subscriptions():
-#     """Main function to process all due subscriptions"""
-#     try:
-#         logging.info("Starting subscription processing...")
-        
-#         # Get all active subscriptions
-#         response = supabase.table("subscriptions").select("*").eq("active", True).execute()
-        
-#         total_subscriptions = len(response.data)
-#         processed = 0
-#         sent = 0
-        
-#         logging.info(f"Found {total_subscriptions} active subscriptions")
-        
-#         for subscription in response.data:
-#             try:
-#                 if is_subscription_due(subscription):
-#                     logging.info(f"Processing subscription for {subscription['email']}")
-                    
-#                     # Execute search
-#                     results = execute_search_for_subscription(subscription)
-                    
-#                     # Send email if results found
-#                     if send_subscription_email(subscription, results):
-#                         sent += 1
-                        
-#                     # Update last_sent timestamp
-#                     update_subscription_last_sent(subscription['id'])
-#                     processed += 1
-#                 else:
-#                     logging.info(f"Subscription for {subscription['email']} not due yet")
-                    
-#             except Exception as e:
-#                 logging.error(f"Error processing subscription {subscription['id']}: {e}")
-#                 continue
-        
-#         logging.info(f"Processing complete: {processed} processed, {sent} emails sent")
-        
-#     except Exception as e:
-#         logging.error(f"Error in process_due_subscriptions: {e}")
 
 
 def process_due_subscriptions(dry_run=False):
