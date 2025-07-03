@@ -544,6 +544,12 @@ else:
                         st.success(success_message)
                     except Exception as e:
                         st.error(f"❌ Subscription failed: {e}")
+                
+                elif result["status"] == "error":
+                    st.error(f"❌ {result['message']}")
+                    if "Maximum of 3" in result["message"]:
+                        st.info("💡 **Tip:** You can manage your existing subscriptions by using the unsubscribe link in any of your previous emails.")
+                                
                 else:
                     st.error(f"❌ Subscription failed: {result.get('message', 'Unknown error')}")
 

@@ -179,6 +179,8 @@
 #         logging.error(f"Error generating unsubscribe token: {e}")
 #         return None
 
+# store_subscription.py
+
 from supabase import create_client
 import os
 from dotenv import load_dotenv
@@ -193,13 +195,63 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# def store_user_subscription(email, journals, keywords, frequency, include_preprints=False):
+#     """Store subscription in Supabase database"""
+#     try:
+#         # Prepare data for insertion
+#         subscription_data = {
+#             "email": email,
+#             "journals": journals,  # This should be a list
+#             "keywords": keywords,
+#             "frequency": frequency,
+#             "include_preprints": include_preprints,
+#             "active": True,
+#             "last_sent": None
+#         }
+        
+#         # Insert into database
+#         response = supabase.table("subscriptions").insert(subscription_data).execute()
+        
+#         if response.data:
+#             # ✅ RETURN: Consistent format with status
+#             return {
+#                 "status": "success",
+#                 "data": response.data[0],  # The created subscription
+#                 "message": "Subscription created successfully"
+#             }
+#         else:
+#             logging.error("Failed to store subscription")
+#             return {
+#                 "status": "error",
+#                 "data": None,
+#                 "message": "Failed to store subscription"
+#             }
+            
+#     except Exception as e:
+#         logging.error(f"Error storing subscription: {e}")
+#         return {
+#             "status": "error",
+#             "data": None,
+#             "message": f"Error storing subscription: {str(e)}"
+#         }
+
 def store_user_subscription(email, journals, keywords, frequency, include_preprints=False):
-    """Store subscription in Supabase database"""
+    """Store subscription in Supabase database with limit check"""
     try:
+        # Check existing active subscriptions for this email
+        existing_response = supabase.table("subscriptions").select("id").eq("email", email).eq("active", True).execute()
+        
+        if existing_response.data and len(existing_response.data) >= 3:
+            return {
+                "status": "error",
+                "data": None,
+                "message": "Maximum of 3 active subscriptions per email address. Please unsubscribe from some subscriptions before creating new ones."
+            }
+        
         # Prepare data for insertion
         subscription_data = {
             "email": email,
-            "journals": journals,  # This should be a list
+            "journals": journals,
             "keywords": keywords,
             "frequency": frequency,
             "include_preprints": include_preprints,
@@ -211,10 +263,9 @@ def store_user_subscription(email, journals, keywords, frequency, include_prepri
         response = supabase.table("subscriptions").insert(subscription_data).execute()
         
         if response.data:
-            # ✅ RETURN: Consistent format with status
             return {
                 "status": "success",
-                "data": response.data[0],  # The created subscription
+                "data": response.data[0],
                 "message": "Subscription created successfully"
             }
         else:

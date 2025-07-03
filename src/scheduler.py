@@ -1,7 +1,7 @@
 # scheduler.py
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import pandas as pd
 import io

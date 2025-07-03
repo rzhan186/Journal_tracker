@@ -164,47 +164,46 @@ download_serializer = URLSafeTimedSerializer(DOWNLOAD_SECRET, salt="csv-download
 #         return None
 
 def generate_download_token(csv_data, email, subscription_id=None):
-    """Generate a timestamped token to avoid conflicts"""
+    """Generate token and store CSV in file storage instead of database"""
     try:
         # Handle both bytes and string data
         if isinstance(csv_data, bytes):
-            csv_content = base64.b64encode(csv_data).decode('utf-8')
+            csv_bytes = csv_data
         elif isinstance(csv_data, str):
-            csv_content = base64.b64encode(csv_data.encode('utf-8')).decode('utf-8')
+            csv_bytes = csv_data.encode('utf-8')
         else:
-            csv_content = base64.b64encode(str(csv_data).encode('utf-8')).decode('utf-8')
+            csv_bytes = str(csv_data).encode('utf-8')
         
-        # Generate a unique token with timestamp
-        timestamp = int(datetime.now().timestamp())
-        base_token = str(uuid.uuid4()).replace('-', '')[:12]
-        token = f"{base_token}{timestamp}"[-16:]  # Keep it 16 chars
+        # Generate a unique token
+        token = str(uuid.uuid4()).replace('-', '')[:16]
         
-        # Calculate expiration time (24 hours from now)
-        expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
+        # Upload to Supabase Storage instead of storing in database
+        file_path = f"csv_downloads/{token}.csv"
         
-        # Check if subscription exists and update with new token
-        if subscription_id:
-            # First, backup old token data if it exists and hasn't expired
-            existing = supabase.table('subscriptions').select('csv_token, csv_data, csv_expires_at').eq('id', subscription_id).execute()
+        try:
+            # Upload to Supabase Storage
+            supabase.storage.from_('csv-files').upload(
+                file_path, 
+                csv_bytes,
+                file_options={"content-type": "text/csv"}
+            )
             
-            # Update with new token
-            result = supabase.table('subscriptions').update({
-                'csv_token': token,
-                'csv_data': csv_content,
-                'csv_expires_at': expires_at
-            }).eq('id', subscription_id).execute()
-        else:
-            result = supabase.table('subscriptions').update({
-                'csv_token': token,
-                'csv_data': csv_content,
-                'csv_expires_at': expires_at
-            }).eq('email', email).execute()
-        
-        if result.data:
-            logging.info(f"✅ CSV download token generated: {token} for {email}")
+            # Store only the token and metadata in database
+            expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
+            
+            # Store minimal data in database
+            if subscription_id:
+                supabase.table('subscriptions').update({
+                    'csv_token': token,
+                    'csv_file_path': file_path,  # Store file path instead of data
+                    'csv_expires_at': expires_at
+                }).eq('id', subscription_id).execute()
+            
+            logging.info(f"✅ CSV file uploaded to storage: {file_path}")
             return token
-        else:
-            logging.error(f"❌ Failed to store CSV download data: {result}")
+            
+        except Exception as storage_error:
+            logging.error(f"❌ Failed to upload to storage: {storage_error}")
             return None
             
     except Exception as e:
@@ -212,44 +211,35 @@ def generate_download_token(csv_data, email, subscription_id=None):
         return None
 
 def get_csv_from_token(token):
-    """Retrieve CSV data from subscriptions table using token"""
+    """Retrieve CSV data from file storage"""
     try:
-        # Query subscriptions table for the token
-        result = supabase.table('subscriptions').select('*').eq('csv_token', token).execute()
+        # Get file path from database
+        result = supabase.table('subscriptions').select('csv_file_path, csv_expires_at, email').eq('csv_token', token).execute()
         
         if not result.data:
-            logging.error(f"❌ Token not found: {token}")
             return None, None
         
         record = result.data[0]
         
-        # Check if token has expired
+        # Check expiration
         if record.get('csv_expires_at'):
             expires_at = datetime.fromisoformat(record['csv_expires_at'])
             if datetime.now() > expires_at:
-                logging.error(f"❌ Token expired: {token}")
-                # Clear expired token and data
-                supabase.table('subscriptions').update({
-                    'csv_token': None,
-                    'csv_data': None,
-                    'csv_expires_at': None
-                }).eq('csv_token', token).execute()
+                # Clean up expired file
+                try:
+                    supabase.storage.from_('csv-files').remove([record['csv_file_path']])
+                except:
+                    pass
                 return None, None
         
-        csv_data = record.get('csv_data')
-        if not csv_data:
-            logging.error(f"❌ No CSV data found for token: {token}")
-            return None, None
-            
-        # Decode the CSV data
-        decoded_csv = base64.b64decode(csv_data.encode('utf-8'))
-        email = record['email']
+        # Download from storage
+        file_path = record['csv_file_path']
+        response = supabase.storage.from_('csv-files').download(file_path)
         
-        logging.info(f"✅ CSV data retrieved for token: {token}")
-        return decoded_csv, email
+        return response, record['email']
         
     except Exception as e:
-        logging.error(f"❌ Error retrieving CSV from token: {str(e)}")
+        logging.error(f"❌ Error retrieving CSV: {str(e)}")
         return None, None
 
 def cleanup_expired_csv_tokens():
