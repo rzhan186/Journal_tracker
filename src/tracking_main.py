@@ -412,7 +412,124 @@ def parse_pubmed_article(paper_info):
 
 
 ######################################################################
+# def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywords=None, rate_limiter=None):
+
+#     # Load journal abbreviations
+#     journal_dict = load_pubmed_journal_abbreviations()
+#     formatted_journal = format_journal_abbreviation(journal, journal_dict, rate_limiter)
+
+#     today = datetime.today()
+#     current_month = today.strftime("%Y-%m")
+
+#     if not start_date:
+#         start_date = current_month
+#         end_date = current_month
+#         # Fixing bug if no start date or end date is provided, the program won't work
+#         print(f"No date provided, fetching articles from {journal} of the current month {today.strftime('%Y-%m')}.")
+#     else:
+#         validate_dates(start_date, end_date or current_month)
+
+#     # Construct dates for the API request only if start_date is in YYYY-MM format
+#     if len(start_date) == 7:  # YYYY-MM
+#         start_date = f"{start_date}/01"  # Construct start date as YYYY-MM/01
+#     elif len(start_date) == 10:  # YYYY-MM-DD
+#         start_date = start_date  # Use as is
+
+#     if len(end_date) == 7:
+#         end_date = f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}"
+#     elif len(end_date) == 10:  # YYYY-MM-DD
+#         end_date = end_date  # Use as is
+
+#     # start_date = f"{start_date}/01"
+#     # end_date = (today.strftime("%Y/%m/%d")
+#     #             if end_date == current_date
+#     #             else f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}")
+
+#     print(f"Date range used for query is from {start_date} to {end_date}")
+
+#     # Build the PubMed query
+#     query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
+
+#     print(f"\n🔍 Here is the final PubMed Query:\n{query}\n in case you are curious")
+#     print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date} using keywords {keywords}")
+
+#     # Fetch article IDs using rate limiter if available
+#     pmid_list, count = fetch_article_ids_from_pubmed(query, rate_limiter)
+#     print("Fetched article IDs, proceeding to fetch article details...")
+
+#     papers = []
+#     if not pmid_list:
+#         print(f"No articles found for {formatted_journal} from {start_date} to {end_date}.")
+#         return papers
+
+#     print(f"✅ {count} papers found.")
+
+#     # Fetch details for each article
+#     total_papers = len(pmid_list)
+
+#     for index, pmid in enumerate(pmid_list):
+#         print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
+        
+#         if rate_limiter:
+#             # Use safe fetch method
+#             paper_xml = rate_limiter.safe_pubmed_fetch([pmid])
+#             if paper_xml:
+#                 # You'll need to parse the XML here - this is more complex
+#                 # For now, fallback to direct method but with rate limiting
+#                 time.sleep(1)  # Manual delay
+#                 handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
+#                 paper_info = Entrez.read(handle)
+#                 handle.close()
+#             else:
+#                 continue
+#         else:
+#             # Direct method
+#             handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
+#             paper_info = Entrez.read(handle)
+#             handle.close()
+
+
+#     # Fetch details for each article
+#     total_papers = len(pmid_list)
+
+#     for index, pmid in enumerate(pmid_list):
+#         print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
+#         handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
+#         paper_info = Entrez.read(handle)
+#         handle.close()
+
+#         # Extract article details
+#         article_data = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]
+#         title = article_data["ArticleTitle"]
+#         abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
+#         journal_info = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]["Journal"]["JournalIssue"]
+
+#         pub_date = journal_info.get("PubDate", {})
+#         pub_year = pub_date.get("Year", "Unknown Year")
+#         pub_month = pub_date.get("Month", "Unknown Month")
+#         pub_day = pub_date.get("Day", "")
+
+#         # Extract DOI if available
+#         doi = next((id_item for id_item in paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
+#                     if id_item.attributes["IdType"] == "doi"), None)
+
+#         papers.append({
+#             "Journal": journal,
+#             "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
+#             "Title": title,
+#             "Abstract": abstract,
+#             "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
+#         })
+
+#         # Print progress after fetching each article
+#         print(f"✅ Fetched details for article {index + 1}: {title}")
+
+#     print("😊 All articles have been fetched successfully.")
+#     return papers
+
 def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywords=None, rate_limiter=None):
+    from datetime import datetime
+    import time
 
     # Load journal abbreviations
     journal_dict = load_pubmed_journal_abbreviations()
@@ -424,105 +541,77 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywo
     if not start_date:
         start_date = current_month
         end_date = current_month
-        # Fixing bug if no start date or end date is provided, the program won't work
         print(f"No date provided, fetching articles from {journal} of the current month {today.strftime('%Y-%m')}.")
     else:
         validate_dates(start_date, end_date or current_month)
 
-    # Construct dates for the API request only if start_date is in YYYY-MM format
+    # Format dates for query
     if len(start_date) == 7:  # YYYY-MM
-        start_date = f"{start_date}/01"  # Construct start date as YYYY-MM/01
-    elif len(start_date) == 10:  # YYYY-MM-DD
-        start_date = start_date  # Use as is
-
+        start_date = f"{start_date}/01"
     if len(end_date) == 7:
         end_date = f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}"
-    elif len(end_date) == 10:  # YYYY-MM-DD
-        end_date = end_date  # Use as is
-
-    # start_date = f"{start_date}/01"
-    # end_date = (today.strftime("%Y/%m/%d")
-    #             if end_date == current_date
-    #             else f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}")
 
     print(f"Date range used for query is from {start_date} to {end_date}")
 
-    # Build the PubMed query
+    # Build query
     query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
 
-    print(f"\n🔍 Here is the final PubMed Query:\n{query}\n in case you are curious")
-    print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date} using keywords {keywords}")
+    print(f"\n🔍 Final PubMed Query:\n{query}\n")
+    print(f"Fetching articles from {formatted_journal} between {start_date} and {end_date} using keywords {keywords}")
 
-    # Fetch article IDs using rate limiter if available
+    # Fetch article IDs
     pmid_list, count = fetch_article_ids_from_pubmed(query, rate_limiter)
     print("Fetched article IDs, proceeding to fetch article details...")
 
-    papers = []
     if not pmid_list:
         print(f"No articles found for {formatted_journal} from {start_date} to {end_date}.")
-        return papers
+        return []
 
     print(f"✅ {count} papers found.")
-
-    # Fetch details for each article
-    total_papers = len(pmid_list)
+    papers = []
 
     for index, pmid in enumerate(pmid_list):
-        print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
-        
-        if rate_limiter:
-            # Use safe fetch method
-            paper_xml = rate_limiter.safe_pubmed_fetch([pmid])
-            if paper_xml:
-                # You'll need to parse the XML here - this is more complex
-                # For now, fallback to direct method but with rate limiting
-                time.sleep(1)  # Manual delay
-                handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
-                paper_info = Entrez.read(handle)
-                handle.close()
-            else:
-                continue
-        else:
-            # Direct method
+        print(f"Fetching details for article {index + 1} of {len(pmid_list)} (PMID: {pmid})...")
+
+        try:
+            if rate_limiter:
+                paper_xml = rate_limiter.safe_pubmed_fetch([pmid])
+                if not paper_xml:
+                    continue
+                time.sleep(1)  # Optional manual delay
             handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
             paper_info = Entrez.read(handle)
             handle.close()
 
+            article_data = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]
+            title = article_data["ArticleTitle"]
+            abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
+            journal_info = article_data["Journal"]["JournalIssue"]
 
-    # Fetch details for each article
-    total_papers = len(pmid_list)
+            pub_date = journal_info.get("PubDate", {})
+            pub_year = pub_date.get("Year", "Unknown Year")
+            pub_month = pub_date.get("Month", "Unknown Month")
+            pub_day = pub_date.get("Day", "")
 
-    for index, pmid in enumerate(pmid_list):
-        print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
-        handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
-        paper_info = Entrez.read(handle)
-        handle.close()
+            doi = next(
+                (id_item for id_item in paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
+                 if id_item.attributes["IdType"] == "doi"),
+                None
+            )
 
-        # Extract article details
-        article_data = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]
-        title = article_data["ArticleTitle"]
-        abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
-        journal_info = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]["Journal"]["JournalIssue"]
+            papers.append({
+                "Journal": journal,
+                "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
+                "Title": title,
+                "Abstract": abstract,
+                "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
+            })
 
-        pub_date = journal_info.get("PubDate", {})
-        pub_year = pub_date.get("Year", "Unknown Year")
-        pub_month = pub_date.get("Month", "Unknown Month")
-        pub_day = pub_date.get("Day", "")
+            print(f"✅ Fetched details for article {index + 1}: {title}")
 
-        # Extract DOI if available
-        doi = next((id_item for id_item in paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
-                    if id_item.attributes["IdType"] == "doi"), None)
-
-        papers.append({
-            "Journal": journal,
-            "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
-            "Title": title,
-            "Abstract": abstract,
-            "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
-        })
-
-        # Print progress after fetching each article
-        print(f"✅ Fetched details for article {index + 1}: {title}")
+        except Exception as e:
+            print(f"⚠️ Failed to fetch article {pmid}: {e}")
+            continue
 
     print("😊 All articles have been fetched successfully.")
     return papers
