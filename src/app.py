@@ -128,8 +128,8 @@ def execute_subscription_search(journals, keywords, include_preprints, frequency
     
 
 # Streamlit app configuration
-st.set_page_config(page_title="Journal Tracker", layout="centered")
-st.title("📚 Journal Tracker")
+st.set_page_config(page_title="PubMed Journal Tracker", layout="centered")
+st.title("📚 PubMed Journal Tracker")
 
 # Check for unsubscribe token in the URL
 if 'token' in st.query_params:
