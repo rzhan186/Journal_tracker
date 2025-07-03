@@ -198,7 +198,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def handle_unsubscribe(token):
     """Handles the selective unsubscribe process using the provided token."""
     st.set_page_config(page_title="Manage Subscriptions | PubMed Tracker")
-    st.title("📧 Manage Your PubMed Subscriptions")
+    st.title("📧 Manage Your Journal Tracker Subscriptions")
 
     # Verify the unsubscribe token to get the user's email
     subscription = verify_unsubscribe_token(token)
