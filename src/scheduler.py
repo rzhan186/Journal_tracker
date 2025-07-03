@@ -219,10 +219,6 @@ Download your results (expires in 24 hours):
         logging.error(f"❌ Error in send_subscription_email for {subscription.get('email', 'unknown')}: {e}")
         return False
 
-
-
-
-
 def update_subscription_last_sent(subscription_id):
     """Update the last_sent timestamp for a subscription"""
     try:
@@ -234,6 +230,71 @@ def update_subscription_last_sent(subscription_id):
         
     except Exception as e:
         logging.error(f"Error updating last_sent: {e}")
+
+def run_maintenance():
+    """Run periodic maintenance tasks"""
+    try:
+        from email_dispatcher import cleanup_expired_csv_files
+        logging.info("🧹 Running maintenance tasks...")
+        cleanup_expired_csv_files()
+        logging.info("✅ Maintenance completed")
+    except Exception as e:
+        logging.error(f"❌ Maintenance failed: {e}")
+
+# def process_due_subscriptions(dry_run=False):
+#     """Main function to process all due subscriptions"""
+#     try:
+#         mode = "🧪 DRY RUN" if dry_run else "📬 LIVE MODE"
+#         logging.info(f"Starting subscription processing ({mode})...")
+        
+#         response = supabase.table("subscriptions").select("*").eq("active", True).execute()
+        
+#         total_subscriptions = len(response.data)
+#         processed = 0
+#         sent = 0
+        
+#         logging.info(f"Found {total_subscriptions} active subscriptions")
+        
+#         for subscription in response.data:
+#             try:
+#                 if is_subscription_due(subscription):
+#                     email = subscription['email']
+#                     frequency = subscription.get('frequency', 'weekly')
+                    
+#                     if dry_run:
+#                         logging.info(f"🧪 DRY RUN: Would send {frequency} update to {email}")
+#                         processed += 1
+#                         continue  # Skip actual processing
+                    
+#                     # ✅ Only execute real processing in live mode
+#                     logging.info(f"📬 Processing subscription for {email}")
+                    
+#                     # Execute search
+#                     results = execute_search_for_subscription(subscription)
+                    
+#                     # Send email if results found
+#                     if send_subscription_email(subscription, results):
+#                         sent += 1
+                        
+#                     # Update last_sent timestamp
+#                     update_subscription_last_sent(subscription['id'])
+#                     processed += 1
+#                 else:
+#                     if not dry_run:  # Only log in live mode to reduce noise
+#                         logging.info(f"Subscription for {subscription['email']} not due yet")
+                        
+#             except Exception as e:
+#                 logging.error(f"Error processing subscription {subscription['id']}: {e}")
+#                 continue
+        
+#         if dry_run:
+#             logging.info(f"🧪 DRY RUN COMPLETE: Would process {processed} subscriptions")
+#         else:
+#             logging.info(f"📬 LIVE PROCESSING COMPLETE: {processed} processed, {sent} emails sent")
+        
+#     except Exception as e:
+#         logging.error(f"Error in process_due_subscriptions: {e}")
+
 
 
 def process_due_subscriptions(dry_run=False):
