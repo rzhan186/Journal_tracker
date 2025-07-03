@@ -300,20 +300,12 @@ def handle_unsubscribe(token):
             st.info("💡 Check the boxes next to subscriptions you want to remove, then click 'Confirm Unsubscribe'.")
         
         # Footer options
-        st.markdown("---")
-        st.markdown("### 🔧 Other Options")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔕 Unsubscribe from ALL"):
-                unsubscribe_all_subscriptions(user_email)
-        
-        with col2:
-            st.markdown("[🔍 Create New Subscription](https://journaltracker.streamlit.app)")
+        st.markdown("[🔍 Create New Subscription](https://journaltracker.streamlit.app)")
 
     except Exception as e:
         st.error("❌ An error occurred while loading your subscriptions.")
         logging.error(f"Error loading subscriptions for {user_email}: {e}")
+
 
 def unsubscribe_selected_subscriptions(subscription_ids, user_email):
     """Unsubscribe from selected subscriptions"""

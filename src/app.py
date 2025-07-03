@@ -591,7 +591,7 @@ else:
                 🔁 Frequency: {frequency}
 
                 📥 YOUR CURRENT RESULTS ({result_count} articles found):
-                Your search results are available for download (expires in 24 hours):
+                Your search results are available for download (expires in 3 hours):
                 🔗 {download_link}
 
                 You will receive your next update in {get_next_update_timeframe(frequency)}.
