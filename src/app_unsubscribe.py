@@ -300,6 +300,7 @@ def handle_unsubscribe(token):
             st.info("💡 Check the boxes next to subscriptions you want to remove, then click 'Confirm Unsubscribe'.")
         
         # Footer options
+        st.markdown("---")
         st.markdown("[🔍 Create New Subscription](https://journaltracker.streamlit.app)")
 
     except Exception as e:
