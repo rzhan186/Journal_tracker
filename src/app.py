@@ -338,51 +338,106 @@ else:
                 status_placeholder.success(f"🎉 Search completed! Found {len(df)} articles total.")
                 
                 # Display results
-                if not df.empty:
-                    # Show summary
-                    st.markdown(f"### 📊 Search Results ({len(df)} articles)")
+                with st.expander("📊 Search Summary & Results", expanded=True):
+                    # Search parameters in a compact format
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**📘 Journals:** {', '.join(selected_journals[:2]) + ('...' if len(selected_journals) > 2 else '') if selected_journals else 'None'}")
+                        st.write(f"**📅 Date Range:** {start_date} to {end_date}")
+                    with col2:
+                        st.write(f"**🔑 Keywords:** {raw_keywords[:30] + '...' if len(raw_keywords) > 30 else raw_keywords if raw_keywords else 'None'}")
+                        st.write(f"**📑 Preprints:** {'Yes' if include_preprints else 'No'}")
                     
-                    # Display the DataFrame
-                    st.dataframe(df, use_container_width=True)
+                    # Results breakdown
+                    st.write("---")
+                    st.write("**📈 Results by Source:**")
                     
-                    # Add download button
-                    csv_buffer = io.BytesIO()
-                    csv_content = df.to_csv(index=False)
-                    csv_buffer.write(csv_content.encode())
-                    csv_buffer.seek(0)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if "Source" in df.columns:
+                            source_counts = df["Source"].value_counts()
+                            for source, count in source_counts.items():
+                                st.write(f"• **{source}:** {count} articles")
                     
-                    st.download_button(
-                        label="📥 Download Results as CSV",
-                        data=csv_buffer.getvalue(),
-                        file_name=f"journal_tracker_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        help="Download your search results as a CSV file"
-                    )
+                    with col2:
+                        if "Journal" in df.columns:
+                            journal_counts = df["Journal"].value_counts()
+                            st.write("**By Journal/Platform:**")
+                            for journal, count in journal_counts.head(5).items():  # Show top 5
+                                st.write(f"• {journal}: {count}")
+                            if len(journal_counts) > 5:
+                                st.write(f"• ... and {len(journal_counts) - 5} more")
                     
-                    # Optional: Show first few results as preview
-                    if len(df) > 0:
-                        st.markdown("### 📋 Preview (First 3 Results)")
-                        preview_df = df.head(3)
-                        for idx, row in preview_df.iterrows():
-                            with st.expander(f"📄 {row.get('Title', 'No Title')}", expanded=False):
-                                st.write(f"**Journal:** {row.get('Journal', 'N/A')}")
-                                st.write(f"**Publication Date:** {row.get('Publication Date', 'N/A')}")
-                                st.write(f"**Abstract:** {row.get('Abstract', 'N/A')[:300]}...")
-                                if row.get('DOI', 'N/A') != 'N/A':
-                                    st.write(f"**DOI:** {row.get('DOI', 'N/A')}")
-                else:
-                    # This section should already be working from your existing code
-                    progress_bar.progress(100)
-                    status_placeholder.warning("📭 No articles found matching your criteria.")
+                    # Show PubMed query if applicable
+                    if keywords and selected_journals:
+                        with st.expander("🔍 Technical Details", expanded=False):
+                            query_preview = build_pubmed_query(
+                                journal=selected_journals[0],
+                                start_date=start_date,
+                                end_date=end_date,
+                                keywords=keywords
+                            )
+                            st.caption("🔧 Actual PubMed API query used for search:")
+                            st.code(query_preview, language="none")
+                
+                # Show sample results first
+                with st.expander("👀 Preview Results", expanded=False):
+                    st.dataframe(df.head(10))
+                
+                # Download button moved below preview
+                csv_data = df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="📥 Download Results as CSV",
+                    data=csv_data,
+                    file_name=f"JournalTracker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+
+                # if not df.empty:
+                #     # Show summary
+                #     st.markdown(f"### 📊 Search Results ({len(df)} articles)")
                     
-                    # Show suggestions
-                    st.info("""
-                    **No results found. Try:**
-                    - Expanding your date range
-                    - Using broader keywords
-                    - Checking different journals
-                    - Including preprints
-                    """)
+                #     # Display the DataFrame
+                #     st.dataframe(df, use_container_width=True)
+                    
+                #     # Add download button
+                #     csv_buffer = io.BytesIO()
+                #     csv_content = df.to_csv(index=False)
+                #     csv_buffer.write(csv_content.encode())
+                #     csv_buffer.seek(0)
+                    
+                #     st.download_button(
+                #         label="📥 Download Results as CSV",
+                #         data=csv_buffer.getvalue(),
+                #         file_name=f"journal_tracker_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                #         mime="text/csv",
+                #         help="Download your search results as a CSV file"
+                #     )
+                    
+                #     # Optional: Show first few results as preview
+                #     if len(df) > 0:
+                #         st.markdown("### 📋 Preview (First 3 Results)")
+                #         preview_df = df.head(3)
+                #         for idx, row in preview_df.iterrows():
+                #             with st.expander(f"📄 {row.get('Title', 'No Title')}", expanded=False):
+                #                 st.write(f"**Journal:** {row.get('Journal', 'N/A')}")
+                #                 st.write(f"**Publication Date:** {row.get('Publication Date', 'N/A')}")
+                #                 st.write(f"**Abstract:** {row.get('Abstract', 'N/A')[:300]}...")
+                #                 if row.get('DOI', 'N/A') != 'N/A':
+                #                     st.write(f"**DOI:** {row.get('DOI', 'N/A')}")
+                # else:
+                #     # This section should already be working from your existing code
+                #     progress_bar.progress(100)
+                #     status_placeholder.warning("📭 No articles found matching your criteria.")
+                    
+                #     # Show suggestions
+                #     st.info("""
+                #     **No results found. Try:**
+                #     - Expanding your date range
+                #     - Using broader keywords
+                #     - Checking different journals
+                #     - Including preprints
+                #     """)
                 
             else:
                 progress_bar.progress(100)
