@@ -129,43 +129,6 @@ def load_pubmed_journal_abbreviations():
         print("⚠️ No local file found. Fetching data from PubMed...")
         return get_pubmed_journal_abbreviations()  # Fetch and save if file does not exist
 
-
-# def format_journal_abbreviation(journal, journal_dict):
-#     """
-#     Optimized function to validate and format a journal name or abbreviation for PubMed.
-#     - Uses sets and dictionaries for O(1) lookups to handle large datasets efficiently.
-#     - If a full name is given, retrieves and formats its abbreviation.
-#     - If an abbreviation is given, ensures proper formatting.
-#     - Provides suggestions for typos using fuzzy matching.
-#     """
-    
-#     # Preprocess the journal_dict into two sets for quick lookup
-#     full_names_set = set(journal_dict.values())
-#     abbreviations_set = set(journal_dict.keys())
-    
-#     # Check if input is a known abbreviation
-#     if journal in abbreviations_set:
-#         formatted_abbr = journal  # Use the abbreviation directly, no need to add a dot.
-#         print(f"✅ Found abbreviation. Using formatted abbreviation: {formatted_abbr}")
-#         return formatted_abbr
-
-#     # Check if input is a full journal name
-#     elif journal in full_names_set:
-#         abbr = [abbr for abbr, full_name in journal_dict.items() if full_name == journal][0]
-#         formatted_abbr = abbr  # Get the abbreviation directly without adding a dot
-#         print(f"✅ Found full name. Using abbreviation: {formatted_abbr}")
-#         return formatted_abbr
-
-#     # No exact match — try suggesting similar names
-#     possible_matches = difflib.get_close_matches(journal, list(full_names_set.union(abbreviations_set)), n=5, cutoff=0.6)
-    
-#     suggestion_msg = ""
-#     if possible_matches:
-#         suggestion_msg = "\n🛈 Did you mean: " + ", ".join(f"'{s}'" for s in possible_matches)
-
-#     raise ValueError(f"❌ Error: '{journal}' not found in PubMed journal list.{suggestion_msg}")
-
-
 def format_journal_abbreviation(journal, journal_dict, rate_limiter=None):
     """
     Enhanced function to validate and format a journal name or abbreviation for PubMed.
@@ -231,26 +194,6 @@ def format_journal_abbreviation(journal, journal_dict, rate_limiter=None):
 
     raise ValueError(f"❌ Error: '{journal}' not found in any source.{suggestion_msg}")
 
-
-# def test_journal_name_on_pubmed(journal_name):
-#     """
-#     Test if a journal name works directly with PubMed by doing a small search
-#     """
-#     try:
-#         # Test with a recent date range and limit to 1 result
-#         test_query = f'"{journal_name}"[Journal] AND ("2023/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
-#         handle = Entrez.esearch(db="pubmed", term=test_query, retmax=1)
-#         record = Entrez.read(handle)
-#         handle.close()
-        
-#         # If we get any results, the journal name works
-#         return len(record["IdList"]) > 0
-        
-#     except Exception as e:
-#         # If there's an API error, assume the journal name doesn't work
-#         return False
-    
-
 def test_journal_name_on_pubmed(journal_name, rate_limiter=None):
     """
     Test if a journal name works directly with PubMed by doing a small search
@@ -274,21 +217,6 @@ def test_journal_name_on_pubmed(journal_name, rate_limiter=None):
     except Exception as e:
         # If there's an API error, assume the journal name doesn't work
         return False
-
-
-
-
-
-
-######################################################################
-# create a separate function to fetch articles using the constructed query.
-# def fetch_article_ids_from_pubmed(query):
-#     """Fetch article IDs from PubMed based on the provided query."""
-#     handle = Entrez.esearch(db="pubmed", term=query, retmax=1000, sort="pub date")
-#     record = Entrez.read(handle)
-#     handle.close()
-
-#     return record["IdList"], len(record["IdList"])
 
 def fetch_article_ids_from_pubmed(query, rate_limiter=None):
     """Fetch article IDs from PubMed based on the provided query."""
@@ -333,12 +261,6 @@ def format_boolean_keywords_for_pubmed(raw_query):
             formatted_tokens.append(f'{token}[Title/Abstract]')
 
     return " ".join(formatted_tokens)
-
-# example input
-# (climat* OR "global warming") AND (mercury OR pollution)
-
-# example output
-# climat*[Title/Abstract] OR "global warming"[Title/Abstract] AND mercury[Title/Abstract] OR pollution[Title/Abstract]
 
 ######################################################################
 # Create a function dedicated to building the query.
@@ -410,122 +332,6 @@ def parse_pubmed_article(paper_info):
         "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
     }
 
-
-######################################################################
-# def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywords=None, rate_limiter=None):
-
-#     # Load journal abbreviations
-#     journal_dict = load_pubmed_journal_abbreviations()
-#     formatted_journal = format_journal_abbreviation(journal, journal_dict, rate_limiter)
-
-#     today = datetime.today()
-#     current_month = today.strftime("%Y-%m")
-
-#     if not start_date:
-#         start_date = current_month
-#         end_date = current_month
-#         # Fixing bug if no start date or end date is provided, the program won't work
-#         print(f"No date provided, fetching articles from {journal} of the current month {today.strftime('%Y-%m')}.")
-#     else:
-#         validate_dates(start_date, end_date or current_month)
-
-#     # Construct dates for the API request only if start_date is in YYYY-MM format
-#     if len(start_date) == 7:  # YYYY-MM
-#         start_date = f"{start_date}/01"  # Construct start date as YYYY-MM/01
-#     elif len(start_date) == 10:  # YYYY-MM-DD
-#         start_date = start_date  # Use as is
-
-#     if len(end_date) == 7:
-#         end_date = f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}"
-#     elif len(end_date) == 10:  # YYYY-MM-DD
-#         end_date = end_date  # Use as is
-
-#     # start_date = f"{start_date}/01"
-#     # end_date = (today.strftime("%Y/%m/%d")
-#     #             if end_date == current_date
-#     #             else f"{end_date}/{get_last_day_of_month(end_date[:4], end_date[5:])}")
-
-#     print(f"Date range used for query is from {start_date} to {end_date}")
-
-#     # Build the PubMed query
-#     query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
-
-#     print(f"\n🔍 Here is the final PubMed Query:\n{query}\n in case you are curious")
-#     print(f"Fetching articles from {formatted_journal} published between {start_date} and {end_date} using keywords {keywords}")
-
-#     # Fetch article IDs using rate limiter if available
-#     pmid_list, count = fetch_article_ids_from_pubmed(query, rate_limiter)
-#     print("Fetched article IDs, proceeding to fetch article details...")
-
-#     papers = []
-#     if not pmid_list:
-#         print(f"No articles found for {formatted_journal} from {start_date} to {end_date}.")
-#         return papers
-
-#     print(f"✅ {count} papers found.")
-
-#     # Fetch details for each article
-#     total_papers = len(pmid_list)
-
-#     for index, pmid in enumerate(pmid_list):
-#         print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
-        
-#         if rate_limiter:
-#             # Use safe fetch method
-#             paper_xml = rate_limiter.safe_pubmed_fetch([pmid])
-#             if paper_xml:
-#                 # You'll need to parse the XML here - this is more complex
-#                 # For now, fallback to direct method but with rate limiting
-#                 time.sleep(1)  # Manual delay
-#                 handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
-#                 paper_info = Entrez.read(handle)
-#                 handle.close()
-#             else:
-#                 continue
-#         else:
-#             # Direct method
-#             handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
-#             paper_info = Entrez.read(handle)
-#             handle.close()
-
-
-#     # Fetch details for each article
-#     total_papers = len(pmid_list)
-
-#     for index, pmid in enumerate(pmid_list):
-#         print(f"Fetching details for article {index + 1} of {total_papers} (PMID: {pmid})...")
-#         handle = Entrez.efetch(db="pubmed", id=pmid, rettype="xml")
-#         paper_info = Entrez.read(handle)
-#         handle.close()
-
-#         # Extract article details
-#         article_data = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]
-#         title = article_data["ArticleTitle"]
-#         abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
-#         journal_info = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]["Journal"]["JournalIssue"]
-
-#         pub_date = journal_info.get("PubDate", {})
-#         pub_year = pub_date.get("Year", "Unknown Year")
-#         pub_month = pub_date.get("Month", "Unknown Month")
-#         pub_day = pub_date.get("Day", "")
-
-#         # Extract DOI if available
-#         doi = next((id_item for id_item in paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
-#                     if id_item.attributes["IdType"] == "doi"), None)
-
-#         papers.append({
-#             "Journal": journal,
-#             "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
-#             "Title": title,
-#             "Abstract": abstract,
-#             "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
-#         })
-
-#         # Print progress after fetching each article
-#         print(f"✅ Fetched details for article {index + 1}: {title}")
-
-#     print("😊 All articles have been fetched successfully.")
-#     return papers
 
 def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywords=None, rate_limiter=None):
     from datetime import datetime
@@ -954,22 +760,104 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
     print(f"📁 Fetched {len(df)} articles and saved to {filename}")
 
 
-# Testing specific journals
-# def test_lancet():
-#     """Quick test for Lancet journal"""
-#     test_query = '"Lancet"[Journal] AND ("2024/01/01"[Date - Publication] : "2024/12/31"[Date - Publication])'
-    
-#     try:
-#         handle = Entrez.esearch(db="pubmed", term=test_query, retmax=5)
-#         record = Entrez.read(handle)
-#         handle.close()
-        
-#         print(f"Found {len(record['IdList'])} Lancet articles in 2024")
-#         return len(record["IdList"]) > 0
-#     except Exception as e:
-#         print(f"Error: {e}")
-#         return False
+######################################################################
+# Implement Concurrent Processing
 
-# # Run this to test
-# if __name__ == "__main__":
-#     test_lancet()
+# Add to tracking_main.py
+import concurrent.futures
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
+
+class OptimizedPubMedFetcher:
+    def __init__(self, rate_limiter):
+        self.rate_limiter = rate_limiter
+        self.fetch_semaphore = threading.Semaphore(3)  # Limit concurrent requests
+        
+    def fetch_articles_batch(self, pmid_batch, progress_callback=None):
+        """Fetch multiple articles in a single request"""
+        try:
+            with self.fetch_semaphore:
+                # Fetch up to 200 articles at once
+                articles_xml = self.rate_limiter.safe_pubmed_fetch(pmid_batch)
+                if not articles_xml:
+                    return []
+                
+                # Parse all articles from the batch
+                papers = []
+                handle = Entrez.efetch(db="pubmed", id=pmid_batch, rettype="xml")
+                paper_info_list = Entrez.read(handle)
+                handle.close()
+                
+                for paper_info in paper_info_list.get("PubmedArticle", []):
+                    try:
+                        article_data = paper_info["MedlineCitation"]["Article"]
+                        title = article_data["ArticleTitle"]
+                        abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
+                        journal_info = article_data["Journal"]["JournalIssue"]
+                        
+                        pub_date = journal_info.get("PubDate", {})
+                        pub_year = pub_date.get("Year", "Unknown Year")
+                        pub_month = pub_date.get("Month", "Unknown Month")
+                        pub_day = pub_date.get("Day", "")
+                        
+                        doi = next(
+                            (id_item for id_item in paper_info["PubmedData"]["ArticleIdList"]
+                             if id_item.attributes["IdType"] == "doi"),
+                            None
+                        )
+                        
+                        papers.append({
+                            "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
+                            "Title": title,
+                            "Abstract": abstract,
+                            "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
+                        })
+                        
+                        if progress_callback:
+                            progress_callback(1)  # Increment progress
+                            
+                    except Exception as e:
+                        print(f"⚠️ Error parsing article: {e}")
+                        continue
+                
+                return papers
+                
+        except Exception as e:
+            print(f"⚠️ Error fetching batch: {e}")
+            return []
+    
+    def fetch_pubmed_articles_optimized(self, journal, start_date, end_date, keywords=None, progress_callback=None):
+        """Optimized version with batch processing and threading"""
+        # Your existing setup code...
+        journal_dict = load_pubmed_journal_abbreviations()
+        formatted_journal = format_journal_abbreviation(journal, journal_dict, self.rate_limiter)
+        
+        # Build query and get IDs
+        query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
+        pmid_list, count = fetch_article_ids_from_pubmed(query, self.rate_limiter)
+        
+        if not pmid_list:
+            return []
+        
+        # Split into batches of 50 (PubMed's recommended batch size)
+        batch_size = 50
+        pmid_batches = [pmid_list[i:i + batch_size] for i in range(0, len(pmid_list), batch_size)]
+        
+        all_papers = []
+        
+        # Process batches with limited concurrency
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_to_batch = {
+                executor.submit(self.fetch_articles_batch, batch, progress_callback): batch 
+                for batch in pmid_batches
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_batch):
+                try:
+                    papers = future.result()
+                    all_papers.extend(papers)
+                except Exception as e:
+                    print(f"⚠️ Batch processing error: {e}")
+        
+        return all_papers
