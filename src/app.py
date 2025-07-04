@@ -729,30 +729,30 @@ else:
     # Main application interface  
     st.markdown("<h1 class='main-header'>📚 PubMed Journal Tracker</h1>", unsafe_allow_html=True)  
     
-    # Two column layout for main content  
-    col1, col2 = st.columns([1, 1])  
+    # # Two column layout for main content  
+    # col1, col2 = st.columns([1, 1])  
     
-    with col1:  
-        st.markdown("""  
-        <div class='info-card'>  
-            <h4>🔍 Search & Track Publications</h4>  
-            <p>Search PubMed by journal, date range, and keywords. Subscribe to automatic updates and never miss important research.</p>  
-        </div>  
-        """, unsafe_allow_html=True)  
+    # with col1:  
+    #     st.markdown("""  
+    #     <div class='info-card'>  
+    #         <h4>🔍 Search & Track Publications</h4>  
+    #         <p>Search PubMed by journal, date range, and keywords. Subscribe to automatic updates and never miss important research.</p>  
+    #     </div>  
+    #     """, unsafe_allow_html=True)  
     
-    with col2:  
-        st.markdown("""  
-        <div class='feature-card'>  
-            <h4>✨ Features</h4>  
-            <ul>  
-                <li>🎯 Multi-journal search</li>  
-                <li>📑 Preprint integration</li>  
-                <li>🔔 Email notifications</li>  
-                <li>📊 Progress tracking</li>  
-                <li>📥 CSV export</li>  
-            </ul>  
-        </div>  
-        """, unsafe_allow_html=True)  
+    # with col2:  
+    #     st.markdown("""  
+    #     <div class='feature-card'>  
+    #         <h4>✨ Features</h4>  
+    #         <ul>  
+    #             <li>🎯 Multi-journal search</li>  
+    #             <li>📑 Preprint integration</li>  
+    #             <li>🔔 Email notifications</li>  
+    #             <li>📊 Progress tracking</li>  
+    #             <li>📥 CSV export</li>  
+    #         </ul>  
+    #     </div>  
+    #     """, unsafe_allow_html=True)  
 
     # Sidebar for search parameters  
     with st.sidebar:  
