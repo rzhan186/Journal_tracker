@@ -762,12 +762,14 @@ def export_fetched_articles_as_csv(articles, journal, start_date, end_date, time
 
 ######################################################################
 # Implement Concurrent Processing
-
 # Add to tracking_main.py
 import concurrent.futures
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import time, random, logging
+from datetime import timedelta
+
 
 class OptimizedPubMedFetcher:
     def __init__(self, rate_limiter):
@@ -778,38 +780,57 @@ class OptimizedPubMedFetcher:
         """Fetch multiple articles in a single request"""
         try:
             with self.fetch_semaphore:
-                # Fetch up to 200 articles at once
-                articles_xml = self.rate_limiter.safe_pubmed_fetch(pmid_batch)
-                if not articles_xml:
-                    return []
+                # Convert pmid_batch to comma-separated string if it's a list
+                if isinstance(pmid_batch, list):
+                    pmid_str = ",".join(pmid_batch)
+                else:
+                    pmid_str = pmid_batch
                 
-                # Parse all articles from the batch
-                papers = []
-                handle = Entrez.efetch(db="pubmed", id=pmid_batch, rettype="xml")
+                # Add delay for rate limiting
+                time.sleep(random.uniform(0.5, 1.0))
+                
+                # Fetch articles using Entrez
+                handle = Entrez.efetch(db="pubmed", id=pmid_str, rettype="xml")
                 paper_info_list = Entrez.read(handle)
                 handle.close()
+                
+                papers = []
                 
                 for paper_info in paper_info_list.get("PubmedArticle", []):
                     try:
                         article_data = paper_info["MedlineCitation"]["Article"]
                         title = article_data["ArticleTitle"]
-                        abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
-                        journal_info = article_data["Journal"]["JournalIssue"]
                         
-                        pub_date = journal_info.get("PubDate", {})
+                        # Handle abstract
+                        abstract_sections = article_data.get("Abstract", {}).get("AbstractText", [])
+                        if abstract_sections:
+                            if isinstance(abstract_sections[0], dict):
+                                abstract = " ".join([section.get("text", "") for section in abstract_sections])
+                            else:
+                                abstract = str(abstract_sections[0])
+                        else:
+                            abstract = "No abstract available"
+                        
+                        # Handle publication date
+                        journal_info = article_data.get("Journal", {})
+                        journal_issue = journal_info.get("JournalIssue", {})
+                        pub_date = journal_issue.get("PubDate", {})
+                        
                         pub_year = pub_date.get("Year", "Unknown Year")
                         pub_month = pub_date.get("Month", "Unknown Month")
                         pub_day = pub_date.get("Day", "")
                         
-                        doi = next(
-                            (id_item for id_item in paper_info["PubmedData"]["ArticleIdList"]
-                             if id_item.attributes["IdType"] == "doi"),
-                            None
-                        )
+                        # Handle DOI
+                        doi = None
+                        article_ids = paper_info.get("PubmedData", {}).get("ArticleIdList", [])
+                        for id_item in article_ids:
+                            if hasattr(id_item, 'attributes') and id_item.attributes.get("IdType") == "doi":
+                                doi = str(id_item)
+                                break
                         
                         papers.append({
                             "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
-                            "Title": title,
+                            "Title": str(title),
                             "Abstract": abstract,
                             "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
                         })
@@ -818,7 +839,7 @@ class OptimizedPubMedFetcher:
                             progress_callback(1)  # Increment progress
                             
                     except Exception as e:
-                        print(f"⚠️ Error parsing article: {e}")
+                        print(f"⚠️ Error parsing individual article: {e}")
                         continue
                 
                 return papers
@@ -829,35 +850,102 @@ class OptimizedPubMedFetcher:
     
     def fetch_pubmed_articles_optimized(self, journal, start_date, end_date, keywords=None, progress_callback=None):
         """Optimized version with batch processing and threading"""
-        # Your existing setup code...
-        journal_dict = load_pubmed_journal_abbreviations()
-        formatted_journal = format_journal_abbreviation(journal, journal_dict, self.rate_limiter)
-        
-        # Build query and get IDs
-        query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
-        pmid_list, count = fetch_article_ids_from_pubmed(query, self.rate_limiter)
-        
-        if not pmid_list:
-            return []
-        
-        # Split into batches of 50 (PubMed's recommended batch size)
-        batch_size = 50
-        pmid_batches = [pmid_list[i:i + batch_size] for i in range(0, len(pmid_list), batch_size)]
-        
-        all_papers = []
-        
-        # Process batches with limited concurrency
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            future_to_batch = {
-                executor.submit(self.fetch_articles_batch, batch, progress_callback): batch 
-                for batch in pmid_batches
-            }
+        try:
+            # Use your existing setup code
+            journal_dict = load_pubmed_journal_abbreviations()
+            formatted_journal = format_journal_abbreviation(journal, journal_dict, self.rate_limiter)
             
-            for future in concurrent.futures.as_completed(future_to_batch):
-                try:
-                    papers = future.result()
-                    all_papers.extend(papers)
-                except Exception as e:
-                    print(f"⚠️ Batch processing error: {e}")
+            # Build query and get IDs using your existing function
+            query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
+            pmid_list, count = fetch_article_ids_from_pubmed(query, self.rate_limiter)
+            
+            if not pmid_list:
+                return []
+            
+            # Split into batches of 50 (PubMed's recommended batch size)
+            batch_size = 50
+            pmid_batches = [pmid_list[i:i + batch_size] for i in range(0, len(pmid_list), batch_size)]
+            
+            all_papers = []
+            
+            # Process batches with limited concurrency
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future_to_batch = {
+                    executor.submit(self.fetch_articles_batch, batch, progress_callback): batch 
+                    for batch in pmid_batches
+                }
+                
+                for future in concurrent.futures.as_completed(future_to_batch):
+                    try:
+                        papers = future.result()
+                        all_papers.extend(papers)
+                    except Exception as e:
+                        print(f"⚠️ Batch processing error: {e}")
+            
+            return all_papers
+            
+        except Exception as e:
+            print(f"⚠️ Error in optimized fetch: {e}")
+            return []
+
+
+def execute_subscription_search(journals, keywords, include_preprints, frequency):
+    """Execute search based on subscription parameters"""
+    # Calculate date range based on frequency
+    today = datetime.today().date()
+    
+    if frequency == "weekly":
+        days_back = 7
+    elif frequency == "monthly":
+        days_back = 30
+    elif frequency.startswith("every"):
+        # Extract number from "every X days"
+        days_back = int(frequency.split()[1])
+    else:
+        days_back = 7  # Default fallback
+    
+    start_date = str(today - timedelta(days=days_back))
+    end_date = str(today)
+    
+    all_articles = []
+    
+    try:
+        # Search PubMed journals
+        if journals:
+            for journal in journals:
+                articles = fetch_pubmed_articles_by_date(
+                    journal, start_date, end_date, 
+                    format_boolean_keywords_for_pubmed(keywords) if keywords else None
+                )
+                for article in articles:
+                    article["Journal"] = journal
+                    article["Source"] = "PubMed"
+                all_articles.extend(articles)
         
-        return all_papers
+        # Search preprints
+        if include_preprints:
+            for server in ["biorxiv", "medrxiv"]:
+                preprints = fetch_preprints(
+                    server=server,
+                    start_date=start_date,
+                    end_date=end_date,
+                    keywords=keywords
+                )
+                for article in preprints:
+                    article["Journal"] = server
+                    article["Source"] = "Preprint"
+                all_articles.extend(preprints)
+        
+        if all_articles:
+            # Process results
+            all_articles = standardize_date_format(all_articles)
+            all_articles = standardize_doi_format(all_articles)
+            merged = merge_and_highlight_articles(all_articles, [], keywords)
+            return pd.DataFrame(merged)
+        else:
+            return pd.DataFrame()
+            
+    except Exception as e:
+        logging.error(f"Error in subscription search: {e}")
+        return pd.DataFrame()
+    
