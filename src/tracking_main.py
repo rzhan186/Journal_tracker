@@ -811,14 +811,73 @@ class OptimizedPubMedFetcher:
                         else:
                             abstract = "No abstract available"
                         
-                        # Handle publication date
-                        journal_info = article_data.get("Journal", {})
-                        journal_issue = journal_info.get("JournalIssue", {})
-                        pub_date = journal_issue.get("PubDate", {})
+                        # FIXED: Handle publication date properly
+                        pub_date_str = "Unknown Date"
                         
-                        pub_year = pub_date.get("Year", "Unknown Year")
-                        pub_month = pub_date.get("Month", "Unknown Month")
-                        pub_day = pub_date.get("Day", "")
+                        # Try multiple sources for publication date
+                        # 1. Try ArticleDate first (electronic publication date)
+                        article_date_list = article_data.get("ArticleDate", [])
+                        if article_date_list:
+                            try:
+                                article_date = article_date_list[0]  # Get the first date
+                                year = article_date.get("Year", "")
+                                month = article_date.get("Month", "").zfill(2)
+                                day = article_date.get("Day", "").zfill(2)
+                                if year and month and day:
+                                    pub_date_str = f"{year}-{month}-{day}"
+                            except:
+                                pass
+                        
+                        # 2. If ArticleDate not available, try Journal PubDate
+                        if pub_date_str == "Unknown Date":
+                            try:
+                                journal_info = article_data.get("Journal", {})
+                                journal_issue = journal_info.get("JournalIssue", {})
+                                pub_date = journal_issue.get("PubDate", {})
+                                
+                                year = pub_date.get("Year", "")
+                                month = pub_date.get("Month", "")
+                                day = pub_date.get("Day", "")
+                                
+                                # Convert month name to number if needed
+                                if month and not month.isdigit():
+                                    month_map = {
+                                        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                                        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                                        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12',
+                                        'January': '01', 'February': '02', 'March': '03', 'April': '04',
+                                        'May': '05', 'June': '06', 'July': '07', 'August': '08',
+                                        'September': '09', 'October': '10', 'November': '11', 'December': '12'
+                                    }
+                                    month = month_map.get(month, month)
+                                
+                                if year:
+                                    if month and day:
+                                        pub_date_str = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                                    elif month:
+                                        pub_date_str = f"{year}-{month.zfill(2)}-01"
+                                    else:
+                                        pub_date_str = f"{year}-01-01"
+                            except:
+                                pass
+                        
+                        # 3. If still no date, try PubMedPubDate
+                        if pub_date_str == "Unknown Date":
+                            try:
+                                pubmed_data = paper_info.get("PubmedData", {})
+                                history = pubmed_data.get("History", {})
+                                pub_med_pub_date = history.get("PubMedPubDate", [])
+                                
+                                for date_entry in pub_med_pub_date:
+                                    if date_entry.get("PubStatus") in ["pubmed", "entrez"]:
+                                        year = date_entry.get("Year", "")
+                                        month = date_entry.get("Month", "").zfill(2)
+                                        day = date_entry.get("Day", "").zfill(2)
+                                        if year and month and day:
+                                            pub_date_str = f"{year}-{month}-{day}"
+                                            break
+                            except:
+                                pass
                         
                         # Handle DOI
                         doi = None
@@ -829,7 +888,7 @@ class OptimizedPubMedFetcher:
                                 break
                         
                         papers.append({
-                            "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
+                            "Publication Date": pub_date_str,
                             "Title": str(title),
                             "Abstract": abstract,
                             "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
