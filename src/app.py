@@ -652,6 +652,9 @@ BREVO_SENDER_NAME = os.getenv("BREVO_SENDER_NAME", "PubMed Journal Tracker")
 # Initialize rate limiter
 rate_limiter = PubMedRateLimit()
 
+if not os.getenv("NCBI_API_KEY"):
+    st.warning("⚠️ NCBI API key not configured. Performance may be limited.")
+
 # Page configuration
 st.set_page_config(
     page_title="PubMed Journal Tracker",

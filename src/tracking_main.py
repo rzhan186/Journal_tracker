@@ -1,7 +1,8 @@
 # tracking_main.py
 
 # import modules
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from Bio import Entrez
 from calendar import monthrange
 import pandas as pd
@@ -10,6 +11,28 @@ import requests
 import json
 import difflib
 import time
+from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
+import threading
+import random
+
+from RateLimit import PubMedRateLimit
+
+# Load secrets
+load_dotenv()
+
+# Configure Entrez with API key and email
+Entrez.email = os.getenv("PUBMED_EMAIL")
+Entrez.api_key = os.getenv("NCBI_API_KEY")
+
+# Verify configuration
+if not Entrez.email:
+    print("⚠️ Warning: PUBMED_EMAIL not found in environment variables")
+if not Entrez.api_key:
+    print("⚠️ Warning: NCBI_API_KEY not found in environment variables")
+else:
+    print("✅ NCBI API key configured successfully")
+
 
 ######################################################################
 # separate function for validating date inputs and checking the order.
@@ -771,25 +794,211 @@ import time, random, logging
 from datetime import timedelta
 
 
+# class OptimizedPubMedFetcher:
+#     def __init__(self, rate_limiter):
+#         self.rate_limiter = rate_limiter
+#         self.fetch_semaphore = threading.Semaphore(3)  # Limit concurrent requests
+        
+#     def fetch_articles_batch(self, pmid_batch, progress_callback=None):
+#         """Fetch multiple articles in a single request"""
+#         try:
+#             with self.fetch_semaphore:
+#                 # Convert pmid_batch to comma-separated string if it's a list
+#                 if isinstance(pmid_batch, list):
+#                     pmid_str = ",".join(pmid_batch)
+#                 else:
+#                     pmid_str = pmid_batch
+                
+#                 # Add delay for rate limiting
+#                 time.sleep(random.uniform(0.5, 1.0))
+                
+#                 # Fetch articles using Entrez
+#                 handle = Entrez.efetch(db="pubmed", id=pmid_str, rettype="xml")
+#                 paper_info_list = Entrez.read(handle)
+#                 handle.close()
+                
+#                 papers = []
+                
+#                 for paper_info in paper_info_list.get("PubmedArticle", []):
+#                     try:
+#                         article_data = paper_info["MedlineCitation"]["Article"]
+#                         title = article_data["ArticleTitle"]
+                        
+#                         # Handle abstract
+#                         abstract_sections = article_data.get("Abstract", {}).get("AbstractText", [])
+#                         if abstract_sections:
+#                             if isinstance(abstract_sections[0], dict):
+#                                 abstract = " ".join([section.get("text", "") for section in abstract_sections])
+#                             else:
+#                                 abstract = str(abstract_sections[0])
+#                         else:
+#                             abstract = "No abstract available"
+                        
+#                         # FIXED: Handle publication date properly
+#                         pub_date_str = "Unknown Date"
+                        
+#                         # Try multiple sources for publication date
+#                         # 1. Try ArticleDate first (electronic publication date)
+#                         article_date_list = article_data.get("ArticleDate", [])
+#                         if article_date_list:
+#                             try:
+#                                 article_date = article_date_list[0]  # Get the first date
+#                                 year = article_date.get("Year", "")
+#                                 month = article_date.get("Month", "").zfill(2)
+#                                 day = article_date.get("Day", "").zfill(2)
+#                                 if year and month and day:
+#                                     pub_date_str = f"{year}-{month}-{day}"
+#                             except:
+#                                 pass
+                        
+#                         # 2. If ArticleDate not available, try Journal PubDate
+#                         if pub_date_str == "Unknown Date":
+#                             try:
+#                                 journal_info = article_data.get("Journal", {})
+#                                 journal_issue = journal_info.get("JournalIssue", {})
+#                                 pub_date = journal_issue.get("PubDate", {})
+                                
+#                                 year = pub_date.get("Year", "")
+#                                 month = pub_date.get("Month", "")
+#                                 day = pub_date.get("Day", "")
+                                
+#                                 # Convert month name to number if needed
+#                                 if month and not month.isdigit():
+#                                     month_map = {
+#                                         'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+#                                         'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+#                                         'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12',
+#                                         'January': '01', 'February': '02', 'March': '03', 'April': '04',
+#                                         'May': '05', 'June': '06', 'July': '07', 'August': '08',
+#                                         'September': '09', 'October': '10', 'November': '11', 'December': '12'
+#                                     }
+#                                     month = month_map.get(month, month)
+                                
+#                                 if year:
+#                                     if month and day:
+#                                         pub_date_str = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+#                                     elif month:
+#                                         pub_date_str = f"{year}-{month.zfill(2)}-01"
+#                                     else:
+#                                         pub_date_str = f"{year}-01-01"
+#                             except:
+#                                 pass
+                        
+#                         # 3. If still no date, try PubMedPubDate
+#                         if pub_date_str == "Unknown Date":
+#                             try:
+#                                 pubmed_data = paper_info.get("PubmedData", {})
+#                                 history = pubmed_data.get("History", {})
+#                                 pub_med_pub_date = history.get("PubMedPubDate", [])
+                                
+#                                 for date_entry in pub_med_pub_date:
+#                                     if date_entry.get("PubStatus") in ["pubmed", "entrez"]:
+#                                         year = date_entry.get("Year", "")
+#                                         month = date_entry.get("Month", "").zfill(2)
+#                                         day = date_entry.get("Day", "").zfill(2)
+#                                         if year and month and day:
+#                                             pub_date_str = f"{year}-{month}-{day}"
+#                                             break
+#                             except:
+#                                 pass
+                        
+#                         # Handle DOI
+#                         doi = None
+#                         article_ids = paper_info.get("PubmedData", {}).get("ArticleIdList", [])
+#                         for id_item in article_ids:
+#                             if hasattr(id_item, 'attributes') and id_item.attributes.get("IdType") == "doi":
+#                                 doi = str(id_item)
+#                                 break
+                        
+#                         papers.append({
+#                             "Publication Date": pub_date_str,
+#                             "Title": str(title),
+#                             "Abstract": abstract,
+#                             "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
+#                         })
+                        
+#                         if progress_callback:
+#                             progress_callback(1)  # Increment progress
+                            
+#                     except Exception as e:
+#                         print(f"⚠️ Error parsing individual article: {e}")
+#                         continue
+                
+#                 return papers
+                
+#         except Exception as e:
+#             print(f"⚠️ Error fetching batch: {e}")
+#             return []
+    
+#     def fetch_pubmed_articles_optimized(self, journal, start_date, end_date, keywords=None, progress_callback=None):
+#         """Optimized version with batch processing and threading"""
+#         try:
+#             # Use your existing setup code
+#             journal_dict = load_pubmed_journal_abbreviations()
+#             formatted_journal = format_journal_abbreviation(journal, journal_dict, self.rate_limiter)
+            
+#             # Build query and get IDs using your existing function
+#             query = build_pubmed_query(formatted_journal, start_date, end_date, keywords)
+#             pmid_list, count = fetch_article_ids_from_pubmed(query, self.rate_limiter)
+            
+#             if not pmid_list:
+#                 return []
+            
+#             # Split into batches of 50 (PubMed's recommended batch size)
+#             batch_size = 50
+#             pmid_batches = [pmid_list[i:i + batch_size] for i in range(0, len(pmid_list), batch_size)]
+            
+#             all_papers = []
+            
+#             # Process batches with limited concurrency
+#             with ThreadPoolExecutor(max_workers=2) as executor:
+#                 future_to_batch = {
+#                     executor.submit(self.fetch_articles_batch, batch, progress_callback): batch 
+#                     for batch in pmid_batches
+#                 }
+                
+#                 for future in concurrent.futures.as_completed(future_to_batch):
+#                     try:
+#                         papers = future.result()
+#                         all_papers.extend(papers)
+#                     except Exception as e:
+#                         print(f"⚠️ Batch processing error: {e}")
+            
+#             return all_papers
+            
+#         except Exception as e:
+#             print(f"⚠️ Error in optimized fetch: {e}")
+#             return []
+
 class OptimizedPubMedFetcher:
     def __init__(self, rate_limiter):
-        self.rate_limiter = rate_limiter
-        self.fetch_semaphore = threading.Semaphore(3)  # Limit concurrent requests
+        self.rate_limiter = rate_limiter  # Your PubMedRateLimit instance
+        # Use rate limiter's configuration for max workers
+        max_workers = 5 if rate_limiter.has_api_key else 2
+        self.fetch_semaphore = threading.Semaphore(max_workers)
+        self.max_workers = max_workers
         
     def fetch_articles_batch(self, pmid_batch, progress_callback=None):
-        """Fetch multiple articles in a single request"""
+        """Fetch multiple articles in a single request using the rate limiter"""
         try:
             with self.fetch_semaphore:
-                # Convert pmid_batch to comma-separated string if it's a list
-                if isinstance(pmid_batch, list):
-                    pmid_str = ",".join(pmid_batch)
+                # Convert pmid_batch to list if it's a string
+                if isinstance(pmid_batch, str):
+                    pmid_list = pmid_batch.split(',')
                 else:
-                    pmid_str = pmid_batch
+                    pmid_list = pmid_batch
                 
-                # Add delay for rate limiting
-                time.sleep(random.uniform(0.5, 1.0))
+                # Use rate limiter's thread-safe fetching
+                self.rate_limiter._wait_for_rate_limit()
                 
-                # Fetch articles using Entrez
+                # Optimized delay based on API key availability
+                delay = random.uniform(0.05, 0.1) if self.rate_limiter.has_api_key else random.uniform(0.5, 1.0)
+                time.sleep(delay)
+                
+                # Convert back to comma-separated string for Entrez
+                pmid_str = ",".join(pmid_list)
+                
+                # Fetch articles using Entrez (will automatically use API key if configured)
                 handle = Entrez.efetch(db="pubmed", id=pmid_str, rettype="xml")
                 paper_info_list = Entrez.read(handle)
                 handle.close()
@@ -811,7 +1020,7 @@ class OptimizedPubMedFetcher:
                         else:
                             abstract = "No abstract available"
                         
-                        # FIXED: Handle publication date properly
+                        # Handle publication date properly
                         pub_date_str = "Unknown Date"
                         
                         # Try multiple sources for publication date
@@ -908,7 +1117,7 @@ class OptimizedPubMedFetcher:
             return []
     
     def fetch_pubmed_articles_optimized(self, journal, start_date, end_date, keywords=None, progress_callback=None):
-        """Optimized version with batch processing and threading"""
+        """Optimized version with batch processing and threading - works with PubMedRateLimit"""
         try:
             # Use your existing setup code
             journal_dict = load_pubmed_journal_abbreviations()
@@ -921,14 +1130,14 @@ class OptimizedPubMedFetcher:
             if not pmid_list:
                 return []
             
-            # Split into batches of 50 (PubMed's recommended batch size)
-            batch_size = 50
+            # Optimize batch size based on API key availability
+            batch_size = 200 if self.rate_limiter.has_api_key else 50
             pmid_batches = [pmid_list[i:i + batch_size] for i in range(0, len(pmid_list), batch_size)]
             
             all_papers = []
             
-            # Process batches with limited concurrency
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            # Process batches with optimized concurrency
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 future_to_batch = {
                     executor.submit(self.fetch_articles_batch, batch, progress_callback): batch 
                     for batch in pmid_batches
@@ -946,7 +1155,52 @@ class OptimizedPubMedFetcher:
         except Exception as e:
             print(f"⚠️ Error in optimized fetch: {e}")
             return []
-
+    
+    def fetch_articles_with_progress(self, journal_list, start_date, end_date, keywords=None, progress_callback=None):
+        """
+        Fetch articles from multiple journals with detailed progress tracking
+        """
+        all_articles = []
+        
+        for i, journal in enumerate(journal_list):
+            try:
+                print(f"🔍 Processing journal {i+1}/{len(journal_list)}: {journal}")
+                
+                # Create journal-specific progress callback
+                def journal_progress_callback(count):
+                    if progress_callback:
+                        progress_callback(count, journal)
+                
+                # Fetch articles for this journal
+                articles = self.fetch_pubmed_articles_optimized(
+                    journal, start_date, end_date, keywords, journal_progress_callback
+                )
+                
+                # Add journal information to each article
+                for article in articles:
+                    article["Journal"] = journal
+                    article["Source"] = "PubMed"
+                
+                all_articles.extend(articles)
+                
+                print(f"✅ {journal}: {len(articles)} articles found")
+                
+            except Exception as e:
+                print(f"❌ Error processing {journal}: {e}")
+                continue
+        
+        return all_articles
+    
+    def get_performance_stats(self):
+        """Get performance statistics"""
+        rate_info = self.rate_limiter.get_rate_limit_info()
+        return {
+            "api_key_enabled": rate_info["has_api_key"],
+            "max_concurrent_requests": self.max_workers,
+            "batch_size": 200 if rate_info["has_api_key"] else 50,
+            "total_api_requests": rate_info["total_requests"],
+            "rate_limit_per_second": rate_info["max_requests_per_second"]
+        }
 
 def execute_subscription_search(journals, keywords, include_preprints, frequency):
     """Execute search based on subscription parameters"""
@@ -1008,3 +1262,36 @@ def execute_subscription_search(journals, keywords, include_preprints, frequency
         logging.error(f"Error in subscription search: {e}")
         return pd.DataFrame()
     
+    
+def test_api_configuration_with_rate_limiter():
+    """Test if API key and email are properly configured using PubMedRateLimit"""
+    try:
+        print("🔍 Testing NCBI API configuration with rate limiter...")
+        
+        # Initialize your rate limiter (this configures Entrez)
+        rate_limiter = PubMedRateLimit()
+        
+        # Test with a simple search using the rate limiter
+        search_result = rate_limiter.safe_pubmed_search("cancer[Title]", max_results=5)
+        
+        if search_result and search_result.get("IdList"):
+            print(f"✅ API test successful! Found {len(search_result['IdList'])} articles")
+            print(f"📧 Email: {Entrez.email}")
+            print(f"🔑 API Key: {'*' * (len(Entrez.api_key) - 4) + Entrez.api_key[-4:] if Entrez.api_key else 'Not configured'}")
+            
+            # Show rate limiter configuration
+            config = rate_limiter.get_rate_limit_info()
+            print(f"🚀 Rate Limits: {config['max_requests_per_second']} req/sec, {config['max_requests_per_minute']} req/min")
+            print(f"⚡ Performance Mode: {'High (API Key)' if config['has_api_key'] else 'Standard (No API Key)'}")
+            return True
+        else:
+            print("❌ API test failed - no results returned")
+            return False
+            
+    except Exception as e:
+        print(f"❌ API test failed: {e}")
+        return False
+
+# Call this function when the module loads
+# if __name__ == "__main__":
+#     test_api_configuration_with_rate_limiter()
