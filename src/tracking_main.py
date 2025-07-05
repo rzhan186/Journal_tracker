@@ -520,14 +520,109 @@ def compile_keyword_filter(raw_query, debug=False):
 # function to fetch articles from preprints
 import xml.etree.ElementTree as ET
 
+# def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=None, max_results=50):
+#     """
+#     Fetches preprints from bioRxiv, medRxiv, or arXiv in a standardized format.
+    
+#     Args:
+#         server (str): 'biorxiv', 'medrxiv', or 'arxiv'.
+#         start_date (str): Start date in YYYY-MM-DD (bioRxiv/medRxiv only).
+#         end_date (str): End date in YYYY-MM-DD (bioRxiv/medRxiv only).
+#         keywords (str): Boolean keyword query (AND, OR, NOT, *, ?, parentheses).
+#         max_results (int): Limit for arXiv results.
+
+#     Returns:
+#         List[Dict]: Each with keys Journal, Title, Abstract, Publication Date, DOI.
+#     """
+#     if server not in ["biorxiv", "medrxiv", "arxiv"]:
+#         print("❌ Invalid server. Choose from 'biorxiv', 'medrxiv', or 'arxiv'.")
+#         return []
+
+#     matcher = compile_keyword_filter(keywords) if keywords else lambda x: True
+#     results = []
+
+#     if server == "arxiv":
+#         if not keywords:
+#             print("⚠️ arXiv requires keywords.")
+#             return []
+#         base_url = "http://export.arxiv.org/api/query"
+#         query = f"all:{keywords}"
+#         params = {
+#             "search_query": query,
+#             "start": 0,
+#             "max_results": max_results,
+#             "sortBy": "submittedDate",
+#             "sortOrder": "descending"
+#         }
+
+#         try:
+#             response = requests.get(base_url, params=params, timeout=10)
+#             response.raise_for_status()
+
+#             root = ET.fromstring(response.text)
+#             ns = {'atom': 'http://www.w3.org/2005/Atom'}
+
+#             for entry in root.findall('atom:entry', ns):
+#                 title = entry.find('atom:title', ns).text.strip()
+#                 summary = entry.find('atom:summary', ns).text.strip()
+#                 published = entry.find('atom:published', ns).text.strip()
+#                 doi = None
+#                 for link in entry.findall('atom:link', ns):
+#                     if 'doi.org' in link.get('href', ''):
+#                         doi = link.get('href')
+#                         break
+
+#                 combined_text = f"{title} {summary}"
+#                 if matcher(combined_text):
+#                     results.append({
+#                         "Journal": "arXiv",
+#                         "Publication Date": published[:10],
+#                         "Title": title,
+#                         "Abstract": summary,
+#                         "DOI": doi or "N/A"
+#                     })
+#         except Exception as e:
+#             print(f"⚠️ Error fetching from arXiv: {e}")
+#             return []
+
+#     else:
+#         if not (start_date and end_date):
+#             print("⚠️ Start and end dates are required for bioRxiv/medRxiv.")
+#             return []
+
+#         url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}"
+#         try:
+#             response = requests.get(url, timeout=10)
+#             response.raise_for_status()
+#             data = response.json()
+
+#             for item in data.get("collection", []):
+#                 title = item.get("title", "")
+#                 abstract = item.get("abstract", "")
+#                 combined_text = f"{title} {abstract}"
+#                 if matcher(combined_text):
+#                     results.append({
+#                         "Journal": server,
+#                         "Publication Date": item["date"],
+#                         "Title": title,
+#                         "Abstract": abstract,
+#                         "DOI": item.get("doi", "N/A")
+#                     })
+#         except Exception as e:
+#             print(f"⚠️ Error fetching from {server}: {e}")
+#             return []
+
+#     print(f"✅ Fetched {len(results)} preprints from {server}")
+#     return results
+
 def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=None, max_results=50):
     """
     Fetches preprints from bioRxiv, medRxiv, or arXiv in a standardized format.
     
     Args:
         server (str): 'biorxiv', 'medrxiv', or 'arxiv'.
-        start_date (str): Start date in YYYY-MM-DD (bioRxiv/medRxiv only).
-        end_date (str): End date in YYYY-MM-DD (bioRxiv/medRxiv only).
+        start_date (str): Start date in YYYY-MM-DD format.
+        end_date (str): End date in YYYY-MM-DD format.
         keywords (str): Boolean keyword query (AND, OR, NOT, *, ?, parentheses).
         max_results (int): Limit for arXiv results.
 
@@ -538,6 +633,7 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
         print("❌ Invalid server. Choose from 'biorxiv', 'medrxiv', or 'arxiv'.")
         return []
 
+    # Create keyword matcher if keywords provided
     matcher = compile_keyword_filter(keywords) if keywords else lambda x: True
     results = []
 
@@ -585,36 +681,103 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
             print(f"⚠️ Error fetching from arXiv: {e}")
             return []
 
-    else:
+    else:  # bioRxiv or medRxiv
         if not (start_date and end_date):
             print("⚠️ Start and end dates are required for bioRxiv/medRxiv.")
             return []
 
-        url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}"
+        # Ensure dates are in YYYY-MM-DD format
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-
-            for item in data.get("collection", []):
-                title = item.get("title", "")
-                abstract = item.get("abstract", "")
-                combined_text = f"{title} {abstract}"
-                if matcher(combined_text):
-                    results.append({
-                        "Journal": server,
-                        "Publication Date": item["date"],
-                        "Title": title,
-                        "Abstract": abstract,
-                        "DOI": item.get("doi", "N/A")
-                    })
-        except Exception as e:
-            print(f"⚠️ Error fetching from {server}: {e}")
+            # Convert dates to proper format if needed
+            if isinstance(start_date, str):
+                if len(start_date) == 7:  # YYYY-MM format
+                    start_date = f"{start_date}-01"
+                # Validate date format
+                datetime.strptime(start_date, '%Y-%m-%d')
+            
+            if isinstance(end_date, str):
+                if len(end_date) == 7:  # YYYY-MM format
+                    # Get last day of month
+                    year, month = end_date.split('-')
+                    last_day = monthrange(int(year), int(month))[1]
+                    end_date = f"{end_date}-{last_day:02d}"
+                # Validate date format
+                datetime.strptime(end_date, '%Y-%m-%d')
+                
+        except ValueError as e:
+            print(f"❌ Invalid date format: {e}")
             return []
 
-    print(f"✅ Fetched {len(results)} preprints from {server}")
-    return results
+        # Construct API URL
+        url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}"
+        
+        print(f"🔍 Fetching from {server}: {url}")
+        
+        try:
+            response = requests.get(url, timeout=30)  # Increased timeout
+            response.raise_for_status()
+            
+            # Check if response is JSON
+            if response.headers.get('content-type', '').startswith('application/json'):
+                data = response.json()
+            else:
+                print(f"❌ Non-JSON response from {server}")
+                return []
 
+            # Check for API response structure
+            if "collection" not in data:
+                print(f"⚠️ No 'collection' field in {server} response")
+                return []
+
+            collection = data["collection"]
+            if not collection:
+                print(f"📭 No preprints found in {server} for date range {start_date} to {end_date}")
+                return []
+
+            print(f"📄 Found {len(collection)} preprints from {server}")
+
+            # Process each preprint
+            for item in collection:
+                try:
+                    title = item.get("title", "").strip()
+                    abstract = item.get("abstract", "").strip()
+                    
+                    # Skip if no title or abstract
+                    if not title and not abstract:
+                        continue
+                    
+                    # Apply keyword filtering
+                    combined_text = f"{title} {abstract}"
+                    if matcher(combined_text):
+                        # Extract DOI properly
+                        doi = item.get("doi", "")
+                        if doi and not doi.startswith("http"):
+                            doi = f"https://doi.org/{doi}"
+                        
+                        results.append({
+                            "Journal": server,
+                            "Publication Date": item.get("date", ""),
+                            "Title": title,
+                            "Abstract": abstract,
+                            "DOI": doi if doi else "N/A"
+                        })
+                        
+                except Exception as e:
+                    print(f"⚠️ Error processing preprint item: {e}")
+                    continue
+
+        except requests.exceptions.Timeout:
+            print(f"⏱️ Timeout fetching from {server}")
+            return []
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ Request error fetching from {server}: {e}")
+            return []
+        except Exception as e:
+            print(f"⚠️ Unexpected error fetching from {server}: {e}")
+            return []
+
+    print(f"✅ Successfully fetched {len(results)} preprints from {server}")
+    return results
 
 ######################################################################
 # Create placeholder CSV in case no search was run
@@ -1202,8 +1365,71 @@ class OptimizedPubMedFetcher:
             "rate_limit_per_second": rate_info["max_requests_per_second"]
         }
 
+# def execute_subscription_search(journals, keywords, include_preprints, frequency):
+#     """Execute search based on subscription parameters"""
+#     # Calculate date range based on frequency
+#     today = datetime.today().date()
+    
+#     if frequency == "weekly":
+#         days_back = 7
+#     elif frequency == "monthly":
+#         days_back = 30
+#     elif frequency.startswith("every"):
+#         # Extract number from "every X days"
+#         days_back = int(frequency.split()[1])
+#     else:
+#         days_back = 7  # Default fallback
+    
+#     start_date = str(today - timedelta(days=days_back))
+#     end_date = str(today)
+    
+#     all_articles = []
+    
+#     try:
+#         # Search PubMed journals
+#         if journals:
+#             for journal in journals:
+#                 articles = fetch_pubmed_articles_by_date(
+#                     journal, start_date, end_date, 
+#                     format_boolean_keywords_for_pubmed(keywords) if keywords else None
+#                 )
+#                 for article in articles:
+#                     article["Journal"] = journal
+#                     article["Source"] = "PubMed"
+#                 all_articles.extend(articles)
+        
+#         # Search preprints
+#         if include_preprints:
+#             for server in ["biorxiv", "medrxiv"]:
+#                 preprints = fetch_preprints(
+#                     server=server,
+#                     start_date=start_date,
+#                     end_date=end_date,
+#                     keywords=keywords
+#                 )
+#                 for article in preprints:
+#                     article["Journal"] = server
+#                     article["Source"] = "Preprint"
+#                 all_articles.extend(preprints)
+        
+#         if all_articles:
+#             # Process results
+#             all_articles = standardize_date_format(all_articles)
+#             all_articles = standardize_doi_format(all_articles)
+#             merged = merge_and_highlight_articles(all_articles, [], keywords)
+#             return pd.DataFrame(merged)
+#         else:
+#             return pd.DataFrame()
+            
+#     except Exception as e:
+#         logging.error(f"Error in subscription search: {e}")
+#         return pd.DataFrame()
+    
+
 def execute_subscription_search(journals, keywords, include_preprints, frequency):
     """Execute search based on subscription parameters"""
+    from datetime import datetime, timedelta
+    
     # Calculate date range based on frequency
     today = datetime.today().date()
     
@@ -1213,12 +1439,17 @@ def execute_subscription_search(journals, keywords, include_preprints, frequency
         days_back = 30
     elif frequency.startswith("every"):
         # Extract number from "every X days"
-        days_back = int(frequency.split()[1])
+        try:
+            days_back = int(frequency.split()[1])
+        except:
+            days_back = 7  # fallback
     else:
         days_back = 7  # Default fallback
     
     start_date = str(today - timedelta(days=days_back))
     end_date = str(today)
+    
+    print(f"🔍 Searching from {start_date} to {end_date}")
     
     all_articles = []
     
@@ -1226,28 +1457,38 @@ def execute_subscription_search(journals, keywords, include_preprints, frequency
         # Search PubMed journals
         if journals:
             for journal in journals:
-                articles = fetch_pubmed_articles_by_date(
-                    journal, start_date, end_date, 
-                    format_boolean_keywords_for_pubmed(keywords) if keywords else None
-                )
-                for article in articles:
-                    article["Journal"] = journal
-                    article["Source"] = "PubMed"
-                all_articles.extend(articles)
+                try:
+                    articles = fetch_pubmed_articles_by_date(
+                        journal, start_date, end_date, 
+                        format_boolean_keywords_for_pubmed(keywords) if keywords else None
+                    )
+                    for article in articles:
+                        article["Journal"] = journal
+                        article["Source"] = "PubMed"
+                    all_articles.extend(articles)
+                    print(f"✅ PubMed - {journal}: {len(articles)} articles")
+                except Exception as e:
+                    print(f"❌ Error searching PubMed {journal}: {e}")
+                    continue
         
         # Search preprints
         if include_preprints:
             for server in ["biorxiv", "medrxiv"]:
-                preprints = fetch_preprints(
-                    server=server,
-                    start_date=start_date,
-                    end_date=end_date,
-                    keywords=keywords
-                )
-                for article in preprints:
-                    article["Journal"] = server
-                    article["Source"] = "Preprint"
-                all_articles.extend(preprints)
+                try:
+                    preprints = fetch_preprints(
+                        server=server,
+                        start_date=start_date,
+                        end_date=end_date,
+                        keywords=keywords  # Pass raw keywords, not formatted
+                    )
+                    for article in preprints:
+                        article["Journal"] = server
+                        article["Source"] = "Preprint"
+                    all_articles.extend(preprints)
+                    print(f"✅ Preprints - {server}: {len(preprints)} articles")
+                except Exception as e:
+                    print(f"❌ Error searching preprints {server}: {e}")
+                    continue
         
         if all_articles:
             # Process results
@@ -1259,10 +1500,9 @@ def execute_subscription_search(journals, keywords, include_preprints, frequency
             return pd.DataFrame()
             
     except Exception as e:
-        logging.error(f"Error in subscription search: {e}")
+        print(f"❌ Error in subscription search: {e}")
         return pd.DataFrame()
-    
-    
+
 def test_api_configuration_with_rate_limiter():
     """Test if API key and email are properly configured using PubMedRateLimit"""
     try:
