@@ -332,52 +332,17 @@ else:
                     return self.stop_requested
                     
                 def update_display(self):
-                    # Calculate progress percentage
+                    # Calculate simple progress percentage
                     if self.total_sources > 0:
-                        source_progress = (self.completed_sources / self.total_sources) * 100
+                        progress_percentage = (self.completed_sources / self.total_sources) * 100
+                        progress_bar.progress(int(progress_percentage))
                         
-                        # Add partial progress for current source
-                        if self.current_source_articles > 0 and self.processed_articles > 0:
-                            current_source_progress = min(
-                                (self.processed_articles / self.total_articles_found) * 100,   
-                                100
-                            )
-                            # Weight the current source progress
-                            partial_progress = (current_source_progress / self.total_sources)
-                            total_progress = min(source_progress + partial_progress, 100)
+                        # Simple status updates
+                        if self.completed_sources == self.total_sources:
+                            status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles")
                         else:
-                            total_progress = source_progress
-                        
-                        # Update progress bar
-                        progress_bar.progress(int(total_progress))
-                        
-                        # Update status text with detailed information
-                        elapsed_time = time.time() - self.start_time
-                        
-                        if self.stop_requested:
-                            status_text.warning("🛑 Search stopped by user")
-                        elif self.completed_sources == self.total_sources:
-                            status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles in {elapsed_time:.1f}s")
-                        else:
-                            if self.current_source_articles > 0:
-                                status_text.info(f"🔍 Processing {self.current_source} | Articles: {self.current_source_articles} found")
-                            else:
-                                status_text.info(f"🔍 Searching {self.current_source}...")
-                        
-                        # Update progress statistics
-                        progress_stats.metric(
-                            label="Sources",
-                            value=f"{self.completed_sources}/{self.total_sources}",
-                            delta=f"{self.current_source}" if self.current_source else None
-                        )
-                        
-                        # Update article counter
-                        article_counter.metric(
-                            label="Articles Found",
-                            value=self.total_articles_found,
-                            delta=f"Processing..." if self.processed_articles < self.total_articles_found else "Complete"
-                        )
-            
+                            status_text.info(f"🔍 Searching {self.current_source}... ({self.completed_sources}/{self.total_sources})")
+                            
             # Initialize the enhanced progress tracker  
             tracker = DetailedProgressTracker()  
             
