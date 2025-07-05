@@ -469,14 +469,14 @@ else:
             # Initialize the enhanced progress tracker  
             tracker = DetailedProgressTracker()  
             
-            # Stop button section
-            stop_container = st.container()
-            with stop_container:
-                col1, col2, col3 = st.columns([1, 1, 1])
-                with col2:  # Center the button
-                    if st.button("🛑 Stop Search", key="stop_search", type="secondary"):
-                        tracker.request_stop()
-                        st.rerun()
+            # # Stop button section
+            # stop_container = st.container()
+            # with stop_container:
+            #     col1, col2, col3 = st.columns([1, 1, 1])
+            #     with col2:  # Center the button
+            #         if st.button("🛑 Stop Search", key="stop_search", type="secondary"):
+            #             tracker.request_stop()
+            #             st.rerun()
 
             # Set up sources for tracking  
             sources_to_search = []  
@@ -499,9 +499,9 @@ else:
             # Search PubMed journals with enhanced progress tracking  
             if selected_journals:  
                 for journal in selected_journals: 
-                    if tracker.is_stop_requested():
-                        tracker.add_error("Search stopped by user")
-                        break
+                    # if tracker.is_stop_requested():
+                    #     tracker.add_error("Search stopped by user")
+                    #     break
 
                     tracker.start_source(journal)  
                     
@@ -553,9 +553,9 @@ else:
                 
                 for server in preprint_servers:
                     # Check for stop request
-                    if tracker.is_stop_requested():
-                        tracker.add_error("Search stopped by user")
-                        break
+                    # if tracker.is_stop_requested():
+                    #     tracker.add_error("Search stopped by user")
+                    #     break
                         
                     tracker.start_source(server)
                     
