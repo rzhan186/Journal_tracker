@@ -805,7 +805,7 @@ else:
         
         # Preprint option  
         include_preprints = st.checkbox(  
-            "📑 Include Preprints (bioRxiv, medRxiv)",  
+            "📑 Search Preprints (bioRxiv, medRxiv)",  
             value=False,  
             help="Include preprint servers in your search"  
         )  
@@ -1104,40 +1104,42 @@ else:
             #             st.error(f"❌ {error_msg}")  
             #             tracker.complete_source()  
             #             continue  
-            
-            if include_preprints:
-                preprint_servers = ["biorxiv", "medrxiv"]  # ✅ Fixed: lowercase server names
+
+            if include_preprints:  
+                preprint_servers = ["biorxiv", "medrxiv"]  
                 
-                for server in preprint_servers:
-                    tracker.start_source(server)
+                for server in preprint_servers:  
+                    tracker.start_source(server)  
                     
-                    try:
+                    try:  
                         # Convert date objects to strings if needed
                         search_start_date = str(start_date) if hasattr(start_date, 'strftime') else start_date
                         search_end_date = str(end_date) if hasattr(end_date, 'strftime') else end_date
                         
-                        preprints = fetch_preprints(
-                            server=server,
-                            start_date=search_start_date,
-                            end_date=search_end_date,
-                            keywords=raw_keywords  # Use raw keywords, not formatted
-                        )
+                        # ENHANCED: Remove max_results limit to get ALL preprints
+                        preprints = fetch_preprints(  
+                            server=server,  
+                            start_date=search_start_date,  
+                            end_date=search_end_date,  
+                            keywords=raw_keywords,  # Use raw keywords, not formatted
+                            max_results=None  # Remove limit to get all results
+                        )  
                         
-                        tracker.set_articles_found_for_source(len(preprints))
+                        tracker.set_articles_found_for_source(len(preprints))  
                         
-                        for article in preprints:
-                            article["Journal"] = server
-                            article["Source"] = "Preprint"
-                            tracker.increment_processed()
+                        for article in preprints:  
+                            article["Journal"] = server  
+                            article["Source"] = "Preprint"  
+                            tracker.increment_processed()  
                             
-                        all_articles.extend(preprints)
-                        tracker.complete_source()
+                        all_articles.extend(preprints)  
+                        tracker.complete_source()  
                         
-                    except Exception as e:
-                        error_msg = f"Error searching {server}: {str(e)}"
-                        tracker.add_error(error_msg)
-                        st.error(f"❌ {error_msg}")
-                        tracker.complete_source()
+                    except Exception as e:  
+                        error_msg = f"Error searching {server}: {str(e)}"  
+                        tracker.add_error(error_msg)  
+                        st.error(f"❌ {error_msg}")  
+                        tracker.complete_source()  
                         continue
 
             # ========================================  
