@@ -332,17 +332,52 @@ else:
                     return self.stop_requested
                     
                 def update_display(self):
-                    # Calculate simple progress percentage
+                    # Calculate progress percentage
                     if self.total_sources > 0:
-                        progress_percentage = (self.completed_sources / self.total_sources) * 100
-                        progress_bar.progress(int(progress_percentage))
+                        source_progress = (self.completed_sources / self.total_sources) * 100
                         
-                        # Simple status updates
-                        if self.completed_sources == self.total_sources:
-                            status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles")
+                        # Add partial progress for current source
+                        if self.current_source_articles > 0 and self.processed_articles > 0:
+                            current_source_progress = min(
+                                (self.processed_articles / self.total_articles_found) * 100,   
+                                100
+                            )
+                            # Weight the current source progress
+                            partial_progress = (current_source_progress / self.total_sources)
+                            total_progress = min(source_progress + partial_progress, 100)
                         else:
-                            status_text.info(f"🔍 Searching {self.current_source}... ({self.completed_sources}/{self.total_sources})")
-                            
+                            total_progress = source_progress
+                        
+                        # Update progress bar
+                        progress_bar.progress(int(total_progress))
+                        
+                        # Update status text with detailed information
+                        elapsed_time = time.time() - self.start_time
+                        
+                        if self.stop_requested:
+                            status_text.warning("🛑 Search stopped by user")
+                        elif self.completed_sources == self.total_sources:
+                            status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles in {elapsed_time:.1f}s")
+                        else:
+                            if self.current_source_articles > 0:
+                                status_text.info(f"🔍 Processing {self.current_source} | Articles: {self.current_source_articles} found")
+                            else:
+                                status_text.info(f"🔍 Searching {self.current_source}...")
+                        
+                        # Update progress statistics
+                        progress_stats.metric(
+                            label="Sources",
+                            value=f"{self.completed_sources}/{self.total_sources}",
+                            delta=f"{self.current_source}" if self.current_source else None
+                        )
+                        
+                        # Update article counter
+                        article_counter.metric(
+                            label="Articles Found",
+                            value=self.total_articles_found,
+                            delta=f"Processing..." if self.processed_articles < self.total_articles_found else "Complete"
+                        )
+            
             # Initialize the enhanced progress tracker  
             tracker = DetailedProgressTracker()  
             
@@ -515,72 +550,20 @@ else:
                             st.warning(error)  
                 
                 # Display results  
-                st.markdown("### 📊 Search Results")  
-                
-                # Summary metrics  
-                col1, col2, col3, col4 = st.columns(4)  
-                
-                with col1:  
-                    st.markdown(f"""  
-                    <div class='stats-card'>  
-                        <h3>📄 {len(df)}</h3>  
-                        <p>Total Articles</p>  
-                    </div>  
-                    """, unsafe_allow_html=True)  
-                
-                with col2:  
-                    unique_journals = df['Journal'].nunique() if 'Journal' in df.columns else 0  
-                    st.markdown(f"""  
-                    <div class='stats-card'>  
-                        <h3>📚 {unique_journals}</h3>  
-                        <p>Journals</p>  
-                    </div>  
-                    """, unsafe_allow_html=True)  
-                
-                with col3:  
-                    pubmed_count = len(df[df['Source'] == 'PubMed']) if 'Source' in df.columns else 0  
-                    st.markdown(f"""  
-                    <div class='stats-card'>  
-                        <h3>🔬 {pubmed_count}</h3>  
-                        <p>PubMed</p>  
-                    </div>  
-                    """, unsafe_allow_html=True)  
-                
-                with col4:  
-                    preprint_count = len(df[df['Source'] == 'Preprint']) if 'Source' in df.columns else 0  
-                    st.markdown(f"""  
-                    <div class='stats-card'>  
-                        <h3>📑 {preprint_count}</h3>  
-                        <p>Preprints</p>  
-                    </div>  
-                    """, unsafe_allow_html=True)  
-                
-                st.markdown("---")  
-                
-                # Display the results table  
-                st.dataframe(  
-                    df,  
-                    use_container_width=True,  
-                    hide_index=True,  
-                    column_config={  
-                        "Title": st.column_config.TextColumn("Title", width="large"),  
-                        "Abstract": st.column_config.TextColumn("Abstract", width="large"),  
-                        "DOI": st.column_config.LinkColumn("DOI", width="medium"),  
-                        "Publication Date": st.column_config.DateColumn("Publication Date", width="small"),  
-                        "Journal": st.column_config.TextColumn("Journal", width="medium"),  
-                        "Source": st.column_config.TextColumn("Source", width="small")  
-                    }  
-                )  
-                
-                # Download button  
-                csv = df.to_csv(index=False)  
-                st.download_button(  
-                    label="📥 Download Results as CSV",  
-                    data=csv,  
-                    file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                    mime="text/csv",  
-                    use_container_width=True  
-                )  
+                if all_articles:
+                    status_text.success(f"✅ Search completed! Found {len(df)} articles")
+                    
+                    # Just show download button
+                    csv = df.to_csv(index=False)  
+                    st.download_button(  
+                        label="📥 Download Results as CSV",  
+                        data=csv,  
+                        file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                        mime="text/csv",  
+                        use_container_width=True  
+                    )
+                else:
+                    status_text.warning("📭 No articles found matching your criteria.")
                 
             else:  
                 # No results found  
@@ -621,10 +604,20 @@ else:
             # ========================================  
             
             # Create subscription progress container  
-            with st.container():  
-                sub_progress_bar = st.progress(0)  
-                sub_status_text = st.empty()  
-                sub_stats = st.empty()  # Keep this to avoid errors
+            sub_progress_container = st.container()  
+            with sub_progress_container:
+                st.markdown("<div class='progress-container'>", unsafe_allow_html=True)  
+                st.markdown("### 📬 Subscription Progress")  
+                sub_col1, sub_col2 = st.columns([3, 1])  
+                
+                with sub_col1:  
+                    sub_progress_bar = st.progress(0)  
+                    sub_status_text = st.empty()  
+                    
+                with sub_col2:  
+                    sub_stats = st.empty()  
+                
+                st.markdown("</div>", unsafe_allow_html=True)
             
             try:  
                 # Step 1: Validate and format journals  
