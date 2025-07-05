@@ -547,33 +547,29 @@ else:
                         tracker.complete_source()  
                         continue  
 
-            if include_preprints:  
-                preprint_servers = ["biorxiv", "medrxiv"]  
+            # In the preprint search loop - add this check
+            if include_preprints:
+                preprint_servers = ["biorxiv", "medrxiv"]
                 
-                for server in preprint_servers: 
+                for server in preprint_servers:
+                    # Check for stop request
                     if tracker.is_stop_requested():
                         tracker.add_error("Search stopped by user")
                         break
+                        
+                    tracker.start_source(server)
                     
-                    tracker.start_source(server)  
-                    
-                    try:  
+                    try:
                         # Convert date objects to strings if needed
                         search_start_date = str(start_date) if hasattr(start_date, 'strftime') else start_date
                         search_end_date = str(end_date) if hasattr(end_date, 'strftime') else end_date
                         
-                        # Create a custom progress callback for preprints
+                        # Create a simple progress callback for preprints
                         def preprint_progress_callback(found_count):
-                            # When we receive the actual count of matching articles
+                            # Update the tracker with found articles
                             tracker.set_articles_found_for_source(found_count)
-                            # Update processed count to match found count since preprints are processed in batch
-                            tracker.processed_articles = (tracker.processed_articles 
-                                                        if tracker.processed_articles > 0 
-                                                        else 0) + found_count
-                            tracker.update_display()
-                                                        
-                        # IMPORTANT: Use raw_keywords directly, not processed keywords
-                        # The fetch_preprints function handles its own keyword processing
+                            
+                        # Use raw_keywords directly, not processed keywords
                         preprints = fetch_preprints_with_progress(  
                             server=server,  
                             start_date=search_start_date,  
@@ -583,13 +579,12 @@ else:
                             progress_callback=preprint_progress_callback
                         )
                         
-                        # Final update for this source
+                        # Update tracker with final count
                         tracker.set_articles_found_for_source(len(preprints))  
                         
                         for article in preprints:  
                             article["Journal"] = server  
-                            article["Source"] = "Preprint"  
-                            tracker.increment_processed()  
+                            article["Source"] = "Preprint"
                             
                         all_articles.extend(preprints)  
                         tracker.complete_source()  

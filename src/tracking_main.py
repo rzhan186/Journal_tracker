@@ -1086,11 +1086,16 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
                             page_matches += 1
                             total_matched += 1
                             
-                        # ADD THIS: Update progress every 50 items
-                        if total_processed % 50 == 0 and progress_callback:
-                            progress_callback(total_matched)  # Report current matches
-                        
                         total_processed += 1
+                        
+                        # FIXED: Only call progress callback periodically, not every article
+                        if total_processed % 100 == 0 and progress_callback:
+                            try:
+                                progress_callback(total_matched)  # Report current matches
+                            except Exception as e:
+                                print(f"⚠️ Progress callback error: {e}")
+                                # Continue without progress updates if callback fails
+                                progress_callback = None
                             
                     except Exception as e:
                         print(f"⚠️ Error processing preprint item: {e}")
@@ -1127,9 +1132,12 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         
         results.extend(all_preprints)
         
-        # NOW report the correct count to progress callback - only report actual matches
+        # Final progress callback
         if progress_callback:
-            progress_callback(len(results))  # Report actual matches, not total papers
+            try:
+                progress_callback(len(results))  # Report final count
+            except Exception as e:
+                print(f"⚠️ Final progress callback error: {e}")
         
         # Final summary
         if has_keyword_filter:
@@ -1148,7 +1156,6 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         return []
 
     return results
-
 
 ######################################################################
 # Create placeholder CSV in case no search was run
