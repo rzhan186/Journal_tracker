@@ -779,6 +779,276 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
     print(f"✅ Successfully fetched {len(results)} preprints from {server}")
     return results
 
+def fetch_preprints_parallel_pages(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
+    """
+    Fetch preprint pages in parallel to speed up data retrieval
+    """
+    import concurrent.futures
+    from concurrent.futures import ThreadPoolExecutor
+    
+    if server not in ["biorxiv", "medrxiv"]:
+        print("❌ Invalid server. Choose 'biorxiv' or 'medrxiv'.")
+        return []
+
+    # Setup keyword matcher
+    if keywords and keywords.strip():
+        try:
+            matcher = compile_keyword_filter(keywords.strip())
+            has_keyword_filter = True
+        except Exception as e:
+            print(f"⚠️ Error compiling keyword filter: {e}")
+            matcher = lambda x: True
+            has_keyword_filter = False
+    else:
+        matcher = lambda x: True
+        has_keyword_filter = False
+
+    # Get total count first
+    try:
+        initial_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/0"
+        response = requests.get(initial_url, timeout=30)
+        response.raise_for_status()
+        initial_data = response.json()
+        
+        messages = initial_data.get("messages", [])
+        total_papers = int(messages[0]["total"]) if messages and "total" in messages[0] else len(initial_data.get("collection", []))
+        
+        print(f"📊 {server}: Found {total_papers} total preprints")
+        
+        # Calculate page ranges for parallel processing
+        page_size = 100
+        total_pages = (total_papers + page_size - 1) // page_size
+        
+        # Limit concurrent requests to avoid overwhelming the server
+        max_workers = min(5, total_pages)
+        
+        def fetch_single_page(cursor):
+            """Fetch a single page of results"""
+            try:
+                url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/{cursor}"
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                collection = data.get("collection", [])
+                
+                page_results = []
+                for item in collection:
+                    try:
+                        title = item.get("title", "").strip()
+                        abstract = item.get("abstract", "").strip()
+                        
+                        if not title and not abstract:
+                            continue
+                        
+                        # Quick keyword filtering
+                        combined_text = f"{title} {abstract}"
+                        if matcher(combined_text):
+                            doi = item.get("doi", "")
+                            if doi and not doi.startswith("http"):
+                                doi = f"https://doi.org/{doi}"
+                            
+                            page_results.append({
+                                "Journal": server,
+                                "Publication Date": item.get("date", ""),
+                                "Title": title,
+                                "Abstract": abstract,
+                                "DOI": doi if doi else "N/A"
+                            })
+                    except Exception as e:
+                        continue
+                
+                return page_results, len(collection)
+                
+            except Exception as e:
+                print(f"⚠️ Error fetching page at cursor {cursor}: {e}")
+                return [], 0
+
+        # Process pages in parallel
+        all_results = []
+        total_processed = 0
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all page fetch tasks
+            cursor_values = list(range(0, total_papers, page_size))
+            future_to_cursor = {
+                executor.submit(fetch_single_page, cursor): cursor 
+                for cursor in cursor_values
+            }
+            
+            # Collect results as they complete
+            for future in concurrent.futures.as_completed(future_to_cursor):
+                cursor = future_to_cursor[future]
+                try:
+                    page_results, page_count = future.result()
+                    all_results.extend(page_results)
+                    total_processed += page_count
+                    
+                    # Update progress
+                    if progress_callback:
+                        progress_callback(len(all_results))
+                    
+                    print(f"📄 {server}: Page {cursor//page_size + 1} - {page_count} processed, {len(page_results)} matched")
+                    
+                    # Early termination if we have enough results
+                    if max_results and len(all_results) >= max_results:
+                        print(f"🛑 {server}: Reached max_results limit ({max_results})")
+                        # Cancel remaining futures
+                        for remaining_future in future_to_cursor:
+                            if remaining_future != future:
+                                remaining_future.cancel()
+                        break
+                        
+                except Exception as e:
+                    print(f"⚠️ Error processing page: {e}")
+                    continue
+        
+        # Limit results if max_results specified
+        if max_results and len(all_results) > max_results:
+            all_results = all_results[:max_results]
+        
+        print(f"✅ {server}: Found {len(all_results)} matching preprints out of {total_processed} processed")
+        return all_results
+        
+    except Exception as e:
+        print(f"⚠️ Error in parallel fetch from {server}: {e}")
+        return []
+
+def fetch_preprints_smart_filter(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
+    """
+    Optimized preprint search with smart filtering and early termination
+    """
+    if server not in ["biorxiv", "medrxiv"]:
+        print("❌ Invalid server. Choose 'biorxiv' or 'medrxiv'.")
+        return []
+
+    # Pre-compile keyword patterns for faster matching
+    keyword_patterns = []
+    if keywords and keywords.strip():
+        try:
+            # Extract individual terms for quick pre-filtering
+            terms = re.findall(r'\b\w+\b', keywords.lower())
+            keyword_patterns = [re.compile(term, re.IGNORECASE) for term in terms if len(term) > 2]
+            matcher = compile_keyword_filter(keywords.strip())
+            has_filters = True
+        except Exception as e:
+            print(f"⚠️ Error compiling filters: {e}")
+            matcher = lambda x: True
+            has_filters = False
+    else:
+        matcher = lambda x: True
+        has_filters = False
+
+    def quick_filter(text):
+        """Quick pre-filter to eliminate obviously non-matching articles"""
+        if not has_filters:
+            return True
+        
+        # Quick check: if none of the key terms appear, skip expensive matching
+        text_lower = text.lower()
+        if keyword_patterns and not any(pattern.search(text_lower) for pattern in keyword_patterns):
+            return False
+        
+        return True
+
+    results = []
+    
+    try:
+        # Get initial data
+        initial_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/0"
+        response = requests.get(initial_url, timeout=30)
+        response.raise_for_status()
+        initial_data = response.json()
+        
+        messages = initial_data.get("messages", [])
+        total_papers = int(messages[0]["total"]) if messages and "total" in messages[0] else len(initial_data.get("collection", []))
+        
+        print(f"📊 {server}: Found {total_papers} total preprints")
+        
+        cursor = 0
+        page_size = 100
+        total_processed = 0
+        quick_filtered = 0
+        
+        while cursor < total_papers:
+            try:
+                url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/{cursor}"
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                collection = data.get("collection", [])
+                
+                if not collection:
+                    break
+                
+                page_matches = 0
+                for item in collection:
+                    try:
+                        title = item.get("title", "").strip()
+                        abstract = item.get("abstract", "").strip()
+                        
+                        if not title and not abstract:
+                            continue
+                        
+                        combined_text = f"{title} {abstract}"
+                        
+                        # Quick pre-filter
+                        if not quick_filter(combined_text):
+                            continue
+                        
+                        quick_filtered += 1
+                        
+                        # Full keyword matching
+                        if matcher(combined_text):
+                            doi = item.get("doi", "")
+                            if doi and not doi.startswith("http"):
+                                doi = f"https://doi.org/{doi}"
+                            
+                            results.append({
+                                "Journal": server,
+                                "Publication Date": item.get("date", ""),
+                                "Title": title,
+                                "Abstract": abstract,
+                                "DOI": doi if doi else "N/A"
+                            })
+                            page_matches += 1
+                        
+                        total_processed += 1
+                        
+                        # Update progress every 50 articles
+                        if total_processed % 50 == 0 and progress_callback:
+                            progress_callback(len(results))
+                        
+                    except Exception as e:
+                        continue
+                
+                print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} processed, {page_matches} matched")
+                
+                cursor += len(collection)
+                
+                # Early termination if we have enough results
+                if max_results and len(results) >= max_results:
+                    print(f"🛑 {server}: Reached max_results limit ({max_results})")
+                    results = results[:max_results]
+                    break
+                
+                # Small delay to be nice to the API
+                time.sleep(0.1)
+                
+            except Exception as e:
+                print(f"⚠️ Error fetching page: {e}")
+                break
+        
+        print(f"✅ {server}: {len(results)} matches found")
+        print(f"📊 Filtering efficiency: {quick_filtered}/{total_processed} passed pre-filter")
+        
+        return results
+        
+    except Exception as e:
+        print(f"⚠️ Error in smart filter from {server}: {e}")
+        return [] 
+
 # def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
 #     """
 #     Enhanced fetch_preprints with progress tracking integration and proper keyword handling
@@ -853,7 +1123,7 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
 #             total_papers_in_date_range = len(initial_data.get("collection", []))
 #             print(f"📊 {server}: Found {total_papers_in_date_range} preprints (estimated)")
 
-#         # IMPORTANT: Don't report total to progress callback yet - we need to count matches first
+#         # Progress tracking variables
 #         cursor = 0
 #         page_size = 100
 #         all_preprints = []
@@ -903,11 +1173,20 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
 #                             page_matches += 1
 #                             total_matched += 1
                             
+#                         total_processed += 1
+                        
+#                         # FIXED: Only call progress callback periodically, not every article
+#                         if total_processed % 100 == 0 and progress_callback:
+#                             try:
+#                                 progress_callback(total_matched)  # Report current matches
+#                             except Exception as e:
+#                                 print(f"⚠️ Progress callback error: {e}")
+#                                 # Continue without progress updates if callback fails
+#                                 progress_callback = None
+                            
 #                     except Exception as e:
 #                         print(f"⚠️ Error processing preprint item: {e}")
 #                         continue
-                
-#                 total_processed += len(collection)
                 
 #                 # Show progress with keyword filtering info
 #                 if has_keyword_filter:
@@ -940,9 +1219,12 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
         
 #         results.extend(all_preprints)
         
-#         # NOW report the correct count to progress callback - only report actual matches
+#         # Final progress callback
 #         if progress_callback:
-#             progress_callback(len(results))  # Report actual matches, not total papers
+#             try:
+#                 progress_callback(len(results))  # Report final count
+#             except Exception as e:
+#                 print(f"⚠️ Final progress callback error: {e}")
         
 #         # Final summary
 #         if has_keyword_filter:
@@ -962,200 +1244,86 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
 
 #     return results
 
+######################################################################
+# implement caching for repeated searches
+import hashlib
+import pickle
+import os
+from datetime import datetime, timedelta
+
+def get_cache_key(server, start_date, end_date, keywords):
+    """Generate cache key for search parameters"""
+    cache_data = f"{server}_{start_date}_{end_date}_{keywords or ''}"
+    return hashlib.md5(cache_data.encode()).hexdigest()
+def fetch_preprints_with_cache(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
+    """
+    Cached version of preprint search - saves results for 1 hour
+    """
+    # Check cache first
+    cache_key = get_cache_key(server, start_date, end_date, keywords)
+    cache_file = f"cache/preprints_{cache_key}.pkl"
+    
+    if os.path.exists(cache_file):
+        # Check if cache is less than 1 hour old
+        if time.time() - os.path.getmtime(cache_file) < 3600:
+            try:
+                with open(cache_file, 'rb') as f:
+                    cached_results = pickle.load(f)
+                print(f"📋 Using cached results for {server} ({len(cached_results)} articles)")
+                if progress_callback:
+                    progress_callback(len(cached_results))
+                return cached_results
+            except Exception as e:
+                print(f"⚠️ Cache read error: {e}")
+    
+    # Fetch fresh results using the optimized function
+    results = fetch_preprints_smart_filter(server, start_date, end_date, keywords, max_results, progress_callback)
+    
+    # Cache the results
+    try:
+        os.makedirs("cache", exist_ok=True)
+        with open(cache_file, 'wb') as f:
+            pickle.dump(results, f)
+        print(f"💾 Cached {len(results)} results for future use")
+    except Exception as e:
+        print(f"⚠️ Cache write error: {e}")
+    
+    return results
+
+######################################################################
+# performce optimized fetch preprint function
 def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
     """
-    Enhanced fetch_preprints with progress tracking integration and proper keyword handling
+    Ultra-optimized preprint search with multiple performance improvements
     """
-    if server not in ["biorxiv", "medrxiv"]:
-        print("❌ Invalid server. Choose 'biorxiv' or 'medrxiv'.")
-        return []
-
-    # Create keyword matcher if keywords provided - IMPORTANT: Handle empty/None keywords
-    if keywords and keywords.strip():
-        try:
-            matcher = compile_keyword_filter(keywords.strip())
-            print(f"🔍 Using keyword filter: '{keywords.strip()}'")
-            has_keyword_filter = True
-        except Exception as e:
-            print(f"⚠️ Error compiling keyword filter: {e}")
-            matcher = lambda x: True
-            has_keyword_filter = False
-    else:
-        matcher = lambda x: True
-        has_keyword_filter = False
-        print("🔍 No keyword filter applied")
-
-    results = []
-
-    if not (start_date and end_date):
-        print("⚠️ Start and end dates are required for bioRxiv/medRxiv.")
-        return []
-
-    # Ensure dates are in YYYY-MM-DD format
+    # Choose the best method based on expected dataset size
     try:
-        if isinstance(start_date, str):
-            if len(start_date) == 7:  # YYYY-MM format
-                start_date = f"{start_date}-01"
-            datetime.strptime(start_date, '%Y-%m-%d')
-        
-        if isinstance(end_date, str):
-            if len(end_date) == 7:  # YYYY-MM format
-                year, month = end_date.split('-')
-                last_day = monthrange(int(year), int(month))[1]
-                end_date = f"{end_date}-{last_day:02d}"
-            datetime.strptime(end_date, '%Y-%m-%d')
-            
-    except ValueError as e:
-        print(f"❌ Invalid date format: {e}")
-        return []
-
-    print(f"🔍 Fetching from {server}: {start_date} to {end_date}")
-    
-    try:
+        # Quick size estimation
         initial_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/0"
-        response = requests.get(initial_url, timeout=30)
+        response = requests.get(initial_url, timeout=10)
         response.raise_for_status()
-        
-        if not response.headers.get('content-type', '').startswith('application/json'):
-            print(f"❌ Non-JSON response from {server}")
-            return []
-
         initial_data = response.json()
         
-        if "collection" not in initial_data:
-            print(f"⚠️ No 'collection' field in {server} response")
-            return []
-
-        # Get total count from API
         messages = initial_data.get("messages", [])
-        total_papers_in_date_range = None
-        if messages and "total" in messages[0]:
-            total_papers_in_date_range = int(messages[0]["total"])
-            print(f"📊 {server}: Found {total_papers_in_date_range} total preprints in date range")
+        estimated_total = int(messages[0]["total"]) if messages and "total" in messages[0] else 0
+        
+        print(f"📊 {server}: Estimated {estimated_total} articles to process")
+        
+        # Choose optimization strategy based on dataset size
+        if estimated_total > 5000:
+            print("🚀 Large dataset detected - using parallel processing")
+            return fetch_preprints_parallel_pages(server, start_date, end_date, keywords, max_results, progress_callback)
+        elif estimated_total > 1000:
+            print("⚡ Medium dataset - using smart filtering")
+            return fetch_preprints_smart_filter(server, start_date, end_date, keywords, max_results, progress_callback)
         else:
-            total_papers_in_date_range = len(initial_data.get("collection", []))
-            print(f"📊 {server}: Found {total_papers_in_date_range} preprints (estimated)")
-
-        # Progress tracking variables
-        cursor = 0
-        page_size = 100
-        all_preprints = []
-        total_processed = 0
-        total_matched = 0
-        
-        while True:
-            paginated_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/{cursor}"
-            try:
-                response = requests.get(paginated_url, timeout=30)
-                response.raise_for_status()
-                
-                if not response.headers.get('content-type', '').startswith('application/json'):
-                    print(f"❌ Non-JSON response from {server}")
-                    break
-
-                data = response.json()
-                collection = data.get("collection", [])
-                
-                if not collection:
-                    print(f"📭 No more results from {server} at cursor {cursor}")
-                    break
-                
-                page_matches = 0
-                for item in collection:
-                    try:
-                        title = item.get("title", "").strip()
-                        abstract = item.get("abstract", "").strip()
-                        
-                        if not title and not abstract:
-                            continue
-                        
-                        # Apply keyword filter to combined text
-                        combined_text = f"{title} {abstract}"
-                        if matcher(combined_text):
-                            doi = item.get("doi", "")
-                            if doi and not doi.startswith("http"):
-                                doi = f"https://doi.org/{doi}"
-                            
-                            all_preprints.append({
-                                "Journal": server,
-                                "Publication Date": item.get("date", ""),
-                                "Title": title,
-                                "Abstract": abstract,
-                                "DOI": doi if doi else "N/A"
-                            })
-                            page_matches += 1
-                            total_matched += 1
-                            
-                        total_processed += 1
-                        
-                        # FIXED: Only call progress callback periodically, not every article
-                        if total_processed % 100 == 0 and progress_callback:
-                            try:
-                                progress_callback(total_matched)  # Report current matches
-                            except Exception as e:
-                                print(f"⚠️ Progress callback error: {e}")
-                                # Continue without progress updates if callback fails
-                                progress_callback = None
-                            
-                    except Exception as e:
-                        print(f"⚠️ Error processing preprint item: {e}")
-                        continue
-                
-                # Show progress with keyword filtering info
-                if has_keyword_filter:
-                    print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers processed, {page_matches} matched keywords, {total_matched} total matches")
-                else:
-                    print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers processed, {total_matched} total collected")
-                
-                cursor += len(collection)
-                
-                if len(collection) < page_size:
-                    print(f"✅ {server}: Reached end of results")
-                    break
-                
-                time.sleep(0.5)
-                
-                if max_results and len(all_preprints) >= max_results:
-                    print(f"🛑 {server}: Reached max_results limit ({max_results})")
-                    all_preprints = all_preprints[:max_results]
-                    break
-                    
-            except requests.exceptions.Timeout:
-                print(f"⏱️ Timeout fetching page from {server}")
-                break
-            except requests.exceptions.RequestException as e:
-                print(f"⚠️ Request error fetching page from {server}: {e}")
-                break
-            except Exception as e:
-                print(f"⚠️ Unexpected error fetching page from {server}: {e}")
-                break
-        
-        results.extend(all_preprints)
-        
-        # Final progress callback
-        if progress_callback:
-            try:
-                progress_callback(len(results))  # Report final count
-            except Exception as e:
-                print(f"⚠️ Final progress callback error: {e}")
-        
-        # Final summary
-        if has_keyword_filter:
-            print(f"✅ {server}: Found {len(results)} preprints matching keywords '{keywords.strip()}' out of {total_processed} processed")
-        else:
-            print(f"✅ {server}: Successfully fetched {len(results)} preprints")
-        
-    except requests.exceptions.Timeout:
-        print(f"⏱️ Initial timeout fetching from {server}")
-        return []
-    except requests.exceptions.RequestException as e:
-        print(f"⚠️ Initial request error fetching from {server}: {e}")
-        return []
+            print("📝 Small dataset - using cached approach")
+            return fetch_preprints_with_cache(server, start_date, end_date, keywords, max_results, progress_callback)
+            
     except Exception as e:
-        print(f"⚠️ Unexpected initial error fetching from {server}: {e}")
-        return []
-
-    return results
+        print(f"⚠️ Falling back to original method due to error: {e}")
+        # Fall back to your existing implementation if there are issues
+        return fetch_preprints(server, start_date, end_date, keywords, max_results)
 
 ######################################################################
 # Create placeholder CSV in case no search was run
@@ -1743,67 +1911,6 @@ class OptimizedPubMedFetcher:
             "rate_limit_per_second": rate_info["max_requests_per_second"]
         }
 
-# def execute_subscription_search(journals, keywords, include_preprints, frequency):
-#     """Execute search based on subscription parameters"""
-#     # Calculate date range based on frequency
-#     today = datetime.today().date()
-    
-#     if frequency == "weekly":
-#         days_back = 7
-#     elif frequency == "monthly":
-#         days_back = 30
-#     elif frequency.startswith("every"):
-#         # Extract number from "every X days"
-#         days_back = int(frequency.split()[1])
-#     else:
-#         days_back = 7  # Default fallback
-    
-#     start_date = str(today - timedelta(days=days_back))
-#     end_date = str(today)
-    
-#     all_articles = []
-    
-#     try:
-#         # Search PubMed journals
-#         if journals:
-#             for journal in journals:
-#                 articles = fetch_pubmed_articles_by_date(
-#                     journal, start_date, end_date, 
-#                     format_boolean_keywords_for_pubmed(keywords) if keywords else None
-#                 )
-#                 for article in articles:
-#                     article["Journal"] = journal
-#                     article["Source"] = "PubMed"
-#                 all_articles.extend(articles)
-        
-#         # Search preprints
-#         if include_preprints:
-#             for server in ["biorxiv", "medrxiv"]:
-#                 preprints = fetch_preprints(
-#                     server=server,
-#                     start_date=start_date,
-#                     end_date=end_date,
-#                     keywords=keywords
-#                 )
-#                 for article in preprints:
-#                     article["Journal"] = server
-#                     article["Source"] = "Preprint"
-#                 all_articles.extend(preprints)
-        
-#         if all_articles:
-#             # Process results
-#             all_articles = standardize_date_format(all_articles)
-#             all_articles = standardize_doi_format(all_articles)
-#             merged = merge_and_highlight_articles(all_articles, [], keywords)
-#             return pd.DataFrame(merged)
-#         else:
-#             return pd.DataFrame()
-            
-#     except Exception as e:
-#         logging.error(f"Error in subscription search: {e}")
-#         return pd.DataFrame()
-    
-
 def execute_subscription_search(journals, keywords, include_preprints, frequency):
     """Execute search based on subscription parameters"""
     from datetime import datetime, timedelta
@@ -1913,12 +2020,3 @@ def test_api_configuration_with_rate_limiter():
 # Call this function when the module loads
 # if __name__ == "__main__":
 #     test_api_configuration_with_rate_limiter()
-
-# test_results = fetch_preprints_with_progress(
-#     server="biorxiv",
-#     start_date="2024-01-01", 
-#     end_date="2024-02-29",
-#     keywords="cancer",
-#     max_results=None  # Get all results
-# )
-# print(f"Found {len(test_results)} preprints")
