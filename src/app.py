@@ -448,16 +448,14 @@ else:
                         search_end_date = str(end_date) if hasattr(end_date, 'strftime') else end_date
                         
                         # Create a custom progress callback for preprints
-                        def preprint_progress_callback(found_count, processed_count=None):
-                            if processed_count is None:
-                                # Initial count when articles are found
-                                tracker.set_articles_found_for_source(found_count)
-                            else:
-                                # Update processed count properly
-                                # Don't directly modify tracker.processed_articles
-                                current_processed = tracker.processed_articles
-                                if processed_count > current_processed:
-                                    tracker.increment_processed(processed_count - current_processed)
+                        def preprint_progress_callback(found_count):
+                            # When we receive the actual count of matching articles
+                            tracker.set_articles_found_for_source(found_count)
+                            # Update processed count to match found count since preprints are processed in batch
+                            tracker.processed_articles = (tracker.processed_articles 
+                                                        if tracker.processed_articles > 0 
+                                                        else 0) + found_count
+                            tracker.update_display()
                                                         
                         # IMPORTANT: Use raw_keywords directly, not processed keywords
                         # The fetch_preprints function handles its own keyword processing
@@ -465,10 +463,10 @@ else:
                             server=server,  
                             start_date=search_start_date,  
                             end_date=search_end_date,  
-                            keywords=raw_keywords.strip() if raw_keywords else None,  # Use raw keywords
+                            keywords=raw_keywords.strip() if raw_keywords else None,
                             max_results=None,
                             progress_callback=preprint_progress_callback
-                        )  
+                        )
                         
                         # Final update for this source
                         tracker.set_articles_found_for_source(len(preprints))  
