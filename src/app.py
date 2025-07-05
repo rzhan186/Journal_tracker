@@ -281,25 +281,113 @@ else:
                 st.markdown("</div>", unsafe_allow_html=True)  
             
             # Enhanced Progress Tracker Class  
-            class DetailedProgressTracker:  
-                def __init__(self):  
-                    self.total_sources = 0  
-                    self.completed_sources = 0  
-                    self.total_articles_found = 0  
-                    self.processed_articles = 0  
-                    self.current_source = ""  
-                    self.current_source_articles = 0  
-                    self.errors = []  
-                    self.start_time = time.time()  
+            # class DetailedProgressTracker:  
+            #     def __init__(self):  
+            #         self.total_sources = 0  
+            #         self.completed_sources = 0  
+            #         self.total_articles_found = 0  
+            #         self.processed_articles = 0  
+            #         self.current_source = ""  
+            #         self.current_source_articles = 0  
+            #         self.errors = []  
+            #         self.start_time = time.time()  
                     
-                def set_total_sources(self, total):  
-                    self.total_sources = total  
-                    self.update_display()  
+            #     def set_total_sources(self, total):  
+            #         self.total_sources = total  
+            #         self.update_display()  
                     
-                def start_source(self, source_name):  
-                    self.current_source = source_name  
-                    self.current_source_articles = 0  
-                    self.update_display()  
+            #     def start_source(self, source_name):  
+            #         self.current_source = source_name  
+            #         self.current_source_articles = 0  
+            #         self.update_display()  
+                    
+            #     def set_articles_found_for_source(self, count):
+            #         # Only add to total if this is the first time we're setting count for this source
+            #         if self.current_source_articles == 0:
+            #             self.current_source_articles = count  
+            #             self.total_articles_found += count
+            #         else:
+            #             # Update current source count but adjust total
+            #             self.total_articles_found = self.total_articles_found - self.current_source_articles + count
+            #             self.current_source_articles = count
+            #         self.update_display()
+
+            #     def increment_processed(self, count=1):  
+            #         self.processed_articles += count  
+            #         self.update_display()  
+                    
+            #     def add_error(self, error_msg):  
+            #         self.errors.append(error_msg)  
+                    
+            #     def complete_source(self):  
+            #         self.completed_sources += 1  
+            #         self.update_display()  
+                    
+            #     def update_display(self):  
+            #         # Calculate progress percentage  
+            #         if self.total_sources > 0:  
+            #             source_progress = (self.completed_sources / self.total_sources) * 100  
+                        
+            #             # Add partial progress for current source  
+            #             if self.current_source_articles > 0 and self.processed_articles > 0:  
+            #                 current_source_progress = min(  
+            #                     (self.processed_articles / self.total_articles_found) * 100,   
+            #                     100  
+            #                 )  
+            #                 # Weight the current source progress  
+            #                 partial_progress = (current_source_progress / self.total_sources)  
+            #                 total_progress = min(source_progress + partial_progress, 100)  
+            #             else:  
+            #                 total_progress = source_progress  
+                        
+            #             # Update progress bar  
+            #             progress_bar.progress(int(total_progress))  
+                        
+            #             # Update status text with detailed information  
+            #             elapsed_time = time.time() - self.start_time  
+                        
+            #             if self.completed_sources == self.total_sources:  
+            #                 status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles in {elapsed_time:.1f}s")  
+            #             else:  
+            #                 if self.current_source_articles > 0:  
+            #                     status_text.info(f"🔍 Processing {self.current_source} | Articles: {self.current_source_articles} found")  
+            #                 else:  
+            #                     status_text.info(f"🔍 Searching {self.current_source}...")  
+                        
+            #             # Update progress statistics  
+            #             progress_stats.metric(  
+            #                 label="Sources",  
+            #                 value=f"{self.completed_sources}/{self.total_sources}",  
+            #                 delta=f"{self.current_source}" if self.current_source else None  
+            #             )  
+                        
+            #             # Update article counter  
+            #             article_counter.metric(  
+            #                 label="Articles Found",  
+            #                 value=self.total_articles_found,  
+            #                 delta=f"Processing..." if self.processed_articles < self.total_articles_found else "Complete"  
+            #             )  
+
+            class DetailedProgressTracker:
+                def __init__(self):
+                    self.total_sources = 0
+                    self.completed_sources = 0
+                    self.total_articles_found = 0
+                    self.processed_articles = 0
+                    self.current_source = ""
+                    self.current_source_articles = 0
+                    self.errors = []
+                    self.start_time = time.time()
+                    self.stop_requested = False  # ADD THIS for stop functionality
+                    
+                def set_total_sources(self, total):
+                    self.total_sources = total
+                    self.update_display()
+                    
+                def start_source(self, source_name):
+                    self.current_source = source_name
+                    self.current_source_articles = 0
+                    self.update_display()
                     
                 def set_articles_found_for_source(self, count):
                     # Only add to total if this is the first time we're setting count for this source
@@ -311,66 +399,85 @@ else:
                         self.total_articles_found = self.total_articles_found - self.current_source_articles + count
                         self.current_source_articles = count
                     self.update_display()
-
-                def increment_processed(self, count=1):  
-                    self.processed_articles += count  
-                    self.update_display()  
+                
+                def increment_processed(self, count=1):
+                    self.processed_articles += count
+                    self.update_display()
                     
-                def add_error(self, error_msg):  
-                    self.errors.append(error_msg)  
+                def add_error(self, error_msg):
+                    self.errors.append(error_msg)
                     
-                def complete_source(self):  
-                    self.completed_sources += 1  
-                    self.update_display()  
+                def complete_source(self):
+                    self.completed_sources += 1
+                    self.update_display()
                     
-                def update_display(self):  
-                    # Calculate progress percentage  
-                    if self.total_sources > 0:  
-                        source_progress = (self.completed_sources / self.total_sources) * 100  
+                def request_stop(self):
+                    """Request to stop the current search"""
+                    self.stop_requested = True
+                    
+                def is_stop_requested(self):
+                    """Check if stop was requested"""
+                    return self.stop_requested
+                    
+                def update_display(self):
+                    # Calculate progress percentage
+                    if self.total_sources > 0:
+                        source_progress = (self.completed_sources / self.total_sources) * 100
                         
-                        # Add partial progress for current source  
-                        if self.current_source_articles > 0 and self.processed_articles > 0:  
-                            current_source_progress = min(  
+                        # Add partial progress for current source
+                        if self.current_source_articles > 0 and self.processed_articles > 0:
+                            current_source_progress = min(
                                 (self.processed_articles / self.total_articles_found) * 100,   
-                                100  
-                            )  
-                            # Weight the current source progress  
-                            partial_progress = (current_source_progress / self.total_sources)  
-                            total_progress = min(source_progress + partial_progress, 100)  
-                        else:  
-                            total_progress = source_progress  
+                                100
+                            )
+                            # Weight the current source progress
+                            partial_progress = (current_source_progress / self.total_sources)
+                            total_progress = min(source_progress + partial_progress, 100)
+                        else:
+                            total_progress = source_progress
                         
-                        # Update progress bar  
-                        progress_bar.progress(int(total_progress))  
+                        # Update progress bar
+                        progress_bar.progress(int(total_progress))
                         
-                        # Update status text with detailed information  
-                        elapsed_time = time.time() - self.start_time  
+                        # Update status text with detailed information
+                        elapsed_time = time.time() - self.start_time
                         
-                        if self.completed_sources == self.total_sources:  
-                            status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles in {elapsed_time:.1f}s")  
-                        else:  
-                            if self.current_source_articles > 0:  
-                                status_text.info(f"🔍 Processing {self.current_source} | Articles: {self.current_source_articles} found")  
-                            else:  
-                                status_text.info(f"🔍 Searching {self.current_source}...")  
+                        if self.stop_requested:
+                            status_text.warning("🛑 Search stopped by user")
+                        elif self.completed_sources == self.total_sources:
+                            status_text.success(f"✅ Search completed! Found {self.total_articles_found} articles in {elapsed_time:.1f}s")
+                        else:
+                            if self.current_source_articles > 0:
+                                status_text.info(f"🔍 Processing {self.current_source} | Articles: {self.current_source_articles} found")
+                            else:
+                                status_text.info(f"🔍 Searching {self.current_source}...")
                         
-                        # Update progress statistics  
-                        progress_stats.metric(  
-                            label="Sources",  
-                            value=f"{self.completed_sources}/{self.total_sources}",  
-                            delta=f"{self.current_source}" if self.current_source else None  
-                        )  
+                        # Update progress statistics
+                        progress_stats.metric(
+                            label="Sources",
+                            value=f"{self.completed_sources}/{self.total_sources}",
+                            delta=f"{self.current_source}" if self.current_source else None
+                        )
                         
-                        # Update article counter  
-                        article_counter.metric(  
-                            label="Articles Found",  
-                            value=self.total_articles_found,  
-                            delta=f"Processing..." if self.processed_articles < self.total_articles_found else "Complete"  
-                        )  
+                        # Update article counter
+                        article_counter.metric(
+                            label="Articles Found",
+                            value=self.total_articles_found,
+                            delta=f"Processing..." if self.processed_articles < self.total_articles_found else "Complete"
+                        )
             
             # Initialize the enhanced progress tracker  
             tracker = DetailedProgressTracker()  
             
+            # Stop button section
+            stop_container = st.container()
+            with stop_container:
+                col1, col2, col3 = st.columns([1, 1, 1])
+                with col2:  # Center the button
+                    if st.button("🛑 Stop Search", key="stop_search", type="secondary"):
+                        tracker.request_stop()
+                        st.rerun()
+
             # Set up sources for tracking  
             sources_to_search = []  
             if selected_journals:  
@@ -391,7 +498,11 @@ else:
             
             # Search PubMed journals with enhanced progress tracking  
             if selected_journals:  
-                for journal in selected_journals:  
+                for journal in selected_journals: 
+                    if tracker.is_stop_requested():
+                        tracker.add_error("Search stopped by user")
+                        break
+
                     tracker.start_source(journal)  
                     
                     try:  
@@ -439,7 +550,11 @@ else:
             if include_preprints:  
                 preprint_servers = ["biorxiv", "medrxiv"]  
                 
-                for server in preprint_servers:  
+                for server in preprint_servers: 
+                    if tracker.is_stop_requested():
+                        tracker.add_error("Search stopped by user")
+                        break
+                    
                     tracker.start_source(server)  
                     
                     try:  
@@ -667,7 +782,7 @@ else:
                     sub_progress_bar.progress(50)  
                 else:  
                     # User is subscribing without searching - execute search now  
-                    sub_status_text.info("🔍 Running fresh search for subscription...")  
+                    sub_status_text.info("🔍 Running fresh search for subscription... Don't close the app")  
                     search_results = execute_subscription_search(  
                         journals=formatted_journals,  
                         keywords=raw_keywords,  
