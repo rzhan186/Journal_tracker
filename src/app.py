@@ -372,12 +372,21 @@ else:
                         )
                         
                         # Update article counter
-                        article_counter.metric(
-                            label="Articles Found",
-                            value=self.total_articles_found,
-                            delta=f"Processing..." if self.processed_articles < self.total_articles_found else "Complete"
-                        )
-            
+                        if self.completed_sources == self.total_sources:
+                            # Search is completely finished
+                            article_counter.metric(
+                                label="Articles Found",
+                                value=self.total_articles_found,
+                                delta="Complete"
+                            )
+                        else:
+                            # Search is still in progress
+                            article_counter.metric(
+                                label="Articles Found",
+                                value=self.total_articles_found,
+                                delta=f"Processing..." if self.current_source else "Complete"
+                            )
+                                    
             # Initialize the enhanced progress tracker  
             tracker = DetailedProgressTracker()  
             
