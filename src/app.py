@@ -553,6 +553,20 @@ else:
                 if all_articles:
                     status_text.success(f"✅ Search completed! Found {len(df)} articles")
                     
+                    st.dataframe(  
+                        df,  
+                        use_container_width=True,  
+                        hide_index=True,  
+                        column_config={  
+                            "Title": st.column_config.TextColumn("Title", width="large"),  
+                            "Abstract": st.column_config.TextColumn("Abstract", width="large"),  
+                            "DOI": st.column_config.LinkColumn("DOI", width="medium"),  
+                            "Publication Date": st.column_config.DateColumn("Publication Date", width="small"),  
+                            "Journal": st.column_config.TextColumn("Journal", width="medium"),  
+                            "Source": st.column_config.TextColumn("Source", width="small")  
+                        }  
+                    )  
+
                     # Just show download button
                     csv = df.to_csv(index=False)  
                     st.download_button(  
@@ -564,7 +578,6 @@ else:
                     )
                 else:
                     status_text.warning("📭 No articles found matching your criteria.")
-                
             else:  
                 # No results found  
                 status_text.warning("📭 No articles found matching your criteria.")  
