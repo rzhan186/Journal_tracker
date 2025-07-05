@@ -553,6 +553,19 @@ else:
                 if all_articles:
                     status_text.success(f"✅ Search completed! Found {len(df)} articles")
                     
+                    st.markdown("---")  
+                    st.markdown("### 📊 Search Results")  
+
+                    # Just show download button
+                    csv = df.to_csv(index=False)  
+                    st.download_button(  
+                        label="📥 Download Results as CSV",  
+                        data=csv,  
+                        file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                        mime="text/csv",  
+                        use_container_width=True  
+                    )
+
                     st.dataframe(  
                         df,  
                         use_container_width=True,  
@@ -567,15 +580,6 @@ else:
                         }  
                     )  
 
-                    # Just show download button
-                    csv = df.to_csv(index=False)  
-                    st.download_button(  
-                        label="📥 Download Results as CSV",  
-                        data=csv,  
-                        file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                        mime="text/csv",  
-                        use_container_width=True  
-                    )
                 else:
                     status_text.warning("📭 No articles found matching your criteria.")
             else:  
