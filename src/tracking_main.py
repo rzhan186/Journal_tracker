@@ -792,11 +792,14 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         try:
             matcher = compile_keyword_filter(keywords.strip())
             print(f"🔍 Using keyword filter: '{keywords.strip()}'")
+            has_keyword_filter = True
         except Exception as e:
             print(f"⚠️ Error compiling keyword filter: {e}")
             matcher = lambda x: True
+            has_keyword_filter = False
     else:
         matcher = lambda x: True
+        has_keyword_filter = False
         print("🔍 No keyword filter applied")
 
     results = []
@@ -807,20 +810,16 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
 
     # Ensure dates are in YYYY-MM-DD format
     try:
-        # Convert dates to proper format if needed
         if isinstance(start_date, str):
             if len(start_date) == 7:  # YYYY-MM format
                 start_date = f"{start_date}-01"
-            # Validate date format
             datetime.strptime(start_date, '%Y-%m-%d')
         
         if isinstance(end_date, str):
             if len(end_date) == 7:  # YYYY-MM format
-                # Get last day of month
                 year, month = end_date.split('-')
                 last_day = monthrange(int(year), int(month))[1]
                 end_date = f"{end_date}-{last_day:02d}"
-            # Validate date format
             datetime.strptime(end_date, '%Y-%m-%d')
             
     except ValueError as e:
@@ -846,19 +845,15 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
 
         # Get total count from API
         messages = initial_data.get("messages", [])
-        total_papers = None
+        total_papers_in_date_range = None
         if messages and "total" in messages[0]:
-            total_papers = int(messages[0]["total"])
-            print(f"📊 {server}: Found {total_papers} total preprints in date range")
+            total_papers_in_date_range = int(messages[0]["total"])
+            print(f"📊 {server}: Found {total_papers_in_date_range} total preprints in date range")
         else:
-            # Fallback to collection length
-            total_papers = len(initial_data.get("collection", []))
-            print(f"📊 {server}: Found {total_papers} preprints (estimated)")
+            total_papers_in_date_range = len(initial_data.get("collection", []))
+            print(f"📊 {server}: Found {total_papers_in_date_range} preprints (estimated)")
 
-        # Update progress callback with total found (before keyword filtering)
-        if progress_callback:
-            progress_callback(total_papers)
-                
+        # IMPORTANT: Don't report total to progress callback yet - we need to count matches first
         cursor = 0
         page_size = 100
         all_preprints = []
@@ -915,14 +910,10 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
                 total_processed += len(collection)
                 
                 # Show progress with keyword filtering info
-                if keywords and keywords.strip():
+                if has_keyword_filter:
                     print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers processed, {page_matches} matched keywords, {total_matched} total matches")
                 else:
                     print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers processed, {total_matched} total collected")
-                
-                # Update progress callback with processed count
-                if progress_callback:
-                    progress_callback(total_papers, total_processed)
                 
                 cursor += len(collection)
                 
@@ -949,12 +940,16 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         
         results.extend(all_preprints)
         
+        # NOW report the correct count to progress callback - only report actual matches
+        if progress_callback:
+            progress_callback(len(results))  # Report actual matches, not total papers
+        
         # Final summary
-        if keywords and keywords.strip():
+        if has_keyword_filter:
             print(f"✅ {server}: Found {len(results)} preprints matching keywords '{keywords.strip()}' out of {total_processed} processed")
         else:
             print(f"✅ {server}: Successfully fetched {len(results)} preprints")
-
+        
     except requests.exceptions.Timeout:
         print(f"⏱️ Initial timeout fetching from {server}")
         return []
@@ -966,8 +961,6 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         return []
 
     return results
-
-
 
 ######################################################################
 # Create placeholder CSV in case no search was run
