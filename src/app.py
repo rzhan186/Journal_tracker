@@ -402,6 +402,9 @@ else:
             # Initialize optimized fetcher  
             optimized_fetcher = OptimizedPubMedFetcher(rate_limiter)  
             
+
+
+
             # ========================================  
             # ENHANCED SEARCH EXECUTION  
             # ========================================  
@@ -653,20 +656,9 @@ else:
             # ========================================  
             
             # Create subscription progress container  
-            sub_progress_container = st.container()  
-            with sub_progress_container:  
-                st.markdown("<div class='progress-container'>", unsafe_allow_html=True)  
-                st.markdown("### 📬 Subscription Progress")  
-                sub_col1, sub_col2 = st.columns([3, 1])  
-                
-                with sub_col1:  
-                    sub_progress_bar = st.progress(0)  
-                    sub_status_text = st.empty()  
-                    
-                with sub_col2:  
-                    sub_stats = st.empty()  
-                
-                st.markdown("</div>", unsafe_allow_html=True)  
+            with st.container():
+                progress_bar = st.progress(0)
+                status_text = st.empty() 
             
             try:  
                 # Step 1: Validate and format journals  
