@@ -1914,11 +1914,11 @@ def test_api_configuration_with_rate_limiter():
 # if __name__ == "__main__":
 #     test_api_configuration_with_rate_limiter()
 
-test_results = fetch_preprints_with_progress(
-    server="biorxiv",
-    start_date="2024-01-01", 
-    end_date="2024-02-29",
-    keywords="cancer",
-    max_results=None  # Get all results
-)
-print(f"Found {len(test_results)} preprints")
+# test_results = fetch_preprints_with_progress(
+#     server="biorxiv",
+#     start_date="2024-01-01", 
+#     end_date="2024-02-29",
+#     keywords="cancer",
+#     max_results=None  # Get all results
+# )
+# print(f"Found {len(test_results)} preprints")
