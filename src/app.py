@@ -947,9 +947,9 @@ You will receive your next update in {get_next_update_timeframe(frequency)} (onl
                 elif result["status"] == "error":
                     sub_status_text.error(f"❌ Subscription failed: {result['message']}")
                     sub_progress_bar.progress(100)
-                    st.error(f"❌ {result['message']}")
-                    if "Maximum of 3" in result["message"]:
-                        st.info("💡 **Tip:** You can manage your existing subscriptions by using the unsubscribe link in any of your previous emails.")
+                    # st.error(f"❌ {result['message']}")
+                    # if "Maximum of 3" in result["message"]:
+                    #     st.info("💡 **Tip:** You can manage your existing subscriptions by using the unsubscribe link in any of your previous emails.")
                 else:
                     sub_status_text.error(f"❌ Subscription failed: {result.get('message', 'Unknown error')}")
                     sub_progress_bar.progress(100)
