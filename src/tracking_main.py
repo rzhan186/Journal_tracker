@@ -781,14 +781,24 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
 
 def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
     """
-    Enhanced fetch_preprints with progress tracking integration
+    Enhanced fetch_preprints with progress tracking integration and proper keyword handling
     """
     if server not in ["biorxiv", "medrxiv"]:
         print("❌ Invalid server. Choose 'biorxiv' or 'medrxiv'.")
         return []
 
-    # Create keyword matcher if keywords provided
-    matcher = compile_keyword_filter(keywords) if keywords else lambda x: True
+    # Create keyword matcher if keywords provided - IMPORTANT: Handle empty/None keywords
+    if keywords and keywords.strip():
+        try:
+            matcher = compile_keyword_filter(keywords.strip())
+            print(f"🔍 Using keyword filter: '{keywords.strip()}'")
+        except Exception as e:
+            print(f"⚠️ Error compiling keyword filter: {e}")
+            matcher = lambda x: True
+    else:
+        matcher = lambda x: True
+        print("🔍 No keyword filter applied")
+
     results = []
 
     if not (start_date and end_date):
@@ -817,7 +827,6 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         print(f"❌ Invalid date format: {e}")
         return []
 
-    # Pagination to get all results
     print(f"🔍 Fetching from {server}: {start_date} to {end_date}")
     
     try:
@@ -835,24 +844,26 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
             print(f"⚠️ No 'collection' field in {server} response")
             return []
 
+        # Get total count from API
         messages = initial_data.get("messages", [])
         total_papers = None
         if messages and "total" in messages[0]:
             total_papers = int(messages[0]["total"])
-            print(f"📊 {server}: Found {total_papers} preprints matching your search.")
-            # Update progress callback with total found
-            if progress_callback:
-                progress_callback(total_papers)
+            print(f"📊 {server}: Found {total_papers} total preprints in date range")
         else:
+            # Fallback to collection length
             total_papers = len(initial_data.get("collection", []))
-            print(f"📊 {server}: Found {total_papers} preprints (estimated; could be many more).")
-            if progress_callback:
-                progress_callback(total_papers)
+            print(f"📊 {server}: Found {total_papers} preprints (estimated)")
+
+        # Update progress callback with total found (before keyword filtering)
+        if progress_callback:
+            progress_callback(total_papers)
                 
         cursor = 0
         page_size = 100
         all_preprints = []
         total_processed = 0
+        total_matched = 0
         
         while True:
             paginated_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/{cursor}"
@@ -880,6 +891,7 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
                         if not title and not abstract:
                             continue
                         
+                        # Apply keyword filter to combined text
                         combined_text = f"{title} {abstract}"
                         if matcher(combined_text):
                             doi = item.get("doi", "")
@@ -894,17 +906,23 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
                                 "DOI": doi if doi else "N/A"
                             })
                             page_matches += 1
+                            total_matched += 1
                             
                     except Exception as e:
                         print(f"⚠️ Error processing preprint item: {e}")
                         continue
                 
                 total_processed += len(collection)
-                print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers, {page_matches} matched keywords")
+                
+                # Show progress with keyword filtering info
+                if keywords and keywords.strip():
+                    print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers processed, {page_matches} matched keywords, {total_matched} total matches")
+                else:
+                    print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers processed, {total_matched} total collected")
                 
                 # Update progress callback with processed count
                 if progress_callback:
-                    progress_callback(total_papers or len(all_preprints), total_processed)
+                    progress_callback(total_papers, total_processed)
                 
                 cursor += len(collection)
                 
@@ -930,6 +948,12 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
                 break
         
         results.extend(all_preprints)
+        
+        # Final summary
+        if keywords and keywords.strip():
+            print(f"✅ {server}: Found {len(results)} preprints matching keywords '{keywords.strip()}' out of {total_processed} processed")
+        else:
+            print(f"✅ {server}: Successfully fetched {len(results)} preprints")
 
     except requests.exceptions.Timeout:
         print(f"⏱️ Initial timeout fetching from {server}")
@@ -941,8 +965,9 @@ def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, m
         print(f"⚠️ Unexpected initial error fetching from {server}: {e}")
         return []
 
-    print(f"✅ Successfully fetched {len(results)} preprints from {server}")
     return results
+
+
 
 ######################################################################
 # Create placeholder CSV in case no search was run
