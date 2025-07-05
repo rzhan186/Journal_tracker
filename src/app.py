@@ -264,7 +264,7 @@ else:
             # Create progress container  
             progress_container = st.container()  
             with progress_container:  
-                st.markdown("<div class='progress-container'>", unsafe_allow_html=True)  
+                st.markdown("---")  
                 st.markdown("### 🔍 Search Progress")  
                 
                 # Two columns for better layout  
