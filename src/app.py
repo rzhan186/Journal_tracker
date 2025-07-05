@@ -575,7 +575,7 @@ else:
                             "Abstract": st.column_config.TextColumn("Abstract", width="large"),  
                             "DOI": st.column_config.LinkColumn("DOI", width="medium"),  
                             "Publication Date": st.column_config.DateColumn("Publication Date", width="small"),  
-                            "Journal": st.column_config.TextColumn("Journal", width="medium"),  
+                            "Journal": st.column_config.TextColumn("Journal", width="small"),  
                             "Source": st.column_config.TextColumn("Source", width="small")  
                         }  
                     )  
