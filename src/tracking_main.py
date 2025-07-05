@@ -779,6 +779,171 @@ def fetch_preprints(server="biorxiv", start_date=None, end_date=None, keywords=N
     print(f"✅ Successfully fetched {len(results)} preprints from {server}")
     return results
 
+def fetch_preprints_with_progress(server, start_date, end_date, keywords=None, max_results=None, progress_callback=None):
+    """
+    Enhanced fetch_preprints with progress tracking integration
+    """
+    if server not in ["biorxiv", "medrxiv"]:
+        print("❌ Invalid server. Choose 'biorxiv' or 'medrxiv'.")
+        return []
+
+    # Create keyword matcher if keywords provided
+    matcher = compile_keyword_filter(keywords) if keywords else lambda x: True
+    results = []
+
+    if not (start_date and end_date):
+        print("⚠️ Start and end dates are required for bioRxiv/medRxiv.")
+        return []
+
+    # Ensure dates are in YYYY-MM-DD format
+    try:
+        # Convert dates to proper format if needed
+        if isinstance(start_date, str):
+            if len(start_date) == 7:  # YYYY-MM format
+                start_date = f"{start_date}-01"
+            # Validate date format
+            datetime.strptime(start_date, '%Y-%m-%d')
+        
+        if isinstance(end_date, str):
+            if len(end_date) == 7:  # YYYY-MM format
+                # Get last day of month
+                year, month = end_date.split('-')
+                last_day = monthrange(int(year), int(month))[1]
+                end_date = f"{end_date}-{last_day:02d}"
+            # Validate date format
+            datetime.strptime(end_date, '%Y-%m-%d')
+            
+    except ValueError as e:
+        print(f"❌ Invalid date format: {e}")
+        return []
+
+    # Pagination to get all results
+    print(f"🔍 Fetching from {server}: {start_date} to {end_date}")
+    
+    try:
+        initial_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/0"
+        response = requests.get(initial_url, timeout=30)
+        response.raise_for_status()
+        
+        if not response.headers.get('content-type', '').startswith('application/json'):
+            print(f"❌ Non-JSON response from {server}")
+            return []
+
+        initial_data = response.json()
+        
+        if "collection" not in initial_data:
+            print(f"⚠️ No 'collection' field in {server} response")
+            return []
+
+        messages = initial_data.get("messages", [])
+        total_papers = None
+        if messages and "total" in messages[0]:
+            total_papers = int(messages[0]["total"])
+            print(f"📊 {server}: Found {total_papers} preprints matching your search.")
+            # Update progress callback with total found
+            if progress_callback:
+                progress_callback(total_papers)
+        else:
+            total_papers = len(initial_data.get("collection", []))
+            print(f"📊 {server}: Found {total_papers} preprints (estimated; could be many more).")
+            if progress_callback:
+                progress_callback(total_papers)
+                
+        cursor = 0
+        page_size = 100
+        all_preprints = []
+        total_processed = 0
+        
+        while True:
+            paginated_url = f"https://api.biorxiv.org/details/{server}/{start_date}/{end_date}/{cursor}"
+            try:
+                response = requests.get(paginated_url, timeout=30)
+                response.raise_for_status()
+                
+                if not response.headers.get('content-type', '').startswith('application/json'):
+                    print(f"❌ Non-JSON response from {server}")
+                    break
+
+                data = response.json()
+                collection = data.get("collection", [])
+                
+                if not collection:
+                    print(f"📭 No more results from {server} at cursor {cursor}")
+                    break
+                
+                page_matches = 0
+                for item in collection:
+                    try:
+                        title = item.get("title", "").strip()
+                        abstract = item.get("abstract", "").strip()
+                        
+                        if not title and not abstract:
+                            continue
+                        
+                        combined_text = f"{title} {abstract}"
+                        if matcher(combined_text):
+                            doi = item.get("doi", "")
+                            if doi and not doi.startswith("http"):
+                                doi = f"https://doi.org/{doi}"
+                            
+                            all_preprints.append({
+                                "Journal": server,
+                                "Publication Date": item.get("date", ""),
+                                "Title": title,
+                                "Abstract": abstract,
+                                "DOI": doi if doi else "N/A"
+                            })
+                            page_matches += 1
+                            
+                    except Exception as e:
+                        print(f"⚠️ Error processing preprint item: {e}")
+                        continue
+                
+                total_processed += len(collection)
+                print(f"📄 {server}: Page {cursor//page_size + 1} - {len(collection)} papers, {page_matches} matched keywords")
+                
+                # Update progress callback with processed count
+                if progress_callback:
+                    progress_callback(total_papers or len(all_preprints), total_processed)
+                
+                cursor += len(collection)
+                
+                if len(collection) < page_size:
+                    print(f"✅ {server}: Reached end of results")
+                    break
+                
+                time.sleep(0.5)
+                
+                if max_results and len(all_preprints) >= max_results:
+                    print(f"🛑 {server}: Reached max_results limit ({max_results})")
+                    all_preprints = all_preprints[:max_results]
+                    break
+                    
+            except requests.exceptions.Timeout:
+                print(f"⏱️ Timeout fetching page from {server}")
+                break
+            except requests.exceptions.RequestException as e:
+                print(f"⚠️ Request error fetching page from {server}: {e}")
+                break
+            except Exception as e:
+                print(f"⚠️ Unexpected error fetching page from {server}: {e}")
+                break
+        
+        results.extend(all_preprints)
+
+    except requests.exceptions.Timeout:
+        print(f"⏱️ Initial timeout fetching from {server}")
+        return []
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Initial request error fetching from {server}: {e}")
+        return []
+    except Exception as e:
+        print(f"⚠️ Unexpected initial error fetching from {server}: {e}")
+        return []
+
+    print(f"✅ Successfully fetched {len(results)} preprints from {server}")
+    return results
+
 ######################################################################
 # Create placeholder CSV in case no search was run
 def generate_placeholder_csv():
