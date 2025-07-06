@@ -571,30 +571,31 @@ else:
                     st.markdown("### 📊 Search Results")  
 
                     # Download buttons in two columns
-                    if hasattr(st.session_state, 'search_results') and not st.session_state.search_results.empty:
-                        col1, col2 = st.columns(2)
+                    col1, col2 = st.columns(2)
 
-                        with col1:
-                            # CSV download button
-                            csv = df.to_csv(index=False)  
-                            st.download_button(  
-                                label="📥 Download CSV",  
-                                data=csv,  
-                                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                                mime="text/csv",  
-                                use_container_width=True  
-                            )
+                    with col1:
+                        # CSV download button
+                        csv = st.session_state.search_results.to_csv(index=False)  
+                        st.download_button(  
+                            label="📥 Download CSV",  
+                            data=csv,  
+                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                            mime="text/csv",  
+                            use_container_width=True,
+                            key="csv_download_btn"  # Add unique key
+                        )
 
-                        with col2:
-                            # BibTeX download button
-                            bibtex_content = generate_bibtex_from_dataframe(df)
-                            st.download_button(
-                                label="📚 Download BibTeX",
-                                data=bibtex_content,
-                                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
-                                mime="application/x-bibtex",
-                                use_container_width=True
-                            )
+                    with col2:
+                        # BibTeX download button
+                        bibtex_content = generate_bibtex_from_dataframe(st.session_state.search_results)
+                        st.download_button(
+                            label="📚 Download BibTeX",
+                            data=bibtex_content,
+                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
+                            mime="application/x-bibtex",
+                            use_container_width=True,
+                            key="bibtex_download_btn"  # Add unique key
+                        )
 
                     st.dataframe(  
                         st.session_state.search_results,  
