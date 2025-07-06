@@ -414,26 +414,71 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywo
 
             article_data = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]
             title = article_data["ArticleTitle"]
-            abstract = article_data.get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
-            journal_info = article_data["Journal"]["JournalIssue"]
-
-            pub_date = journal_info.get("PubDate", {})
+            
+            # Enhanced abstract handling
+            abstract_sections = article_data.get("Abstract", {}).get("AbstractText", [])
+            if abstract_sections:
+                if isinstance(abstract_sections[0], dict):
+                    abstract = " ".join([section.get("text", "") for section in abstract_sections])
+                else:
+                    abstract = str(abstract_sections[0])
+            else:
+                abstract = "No abstract available"
+            
+            # Enhanced author extraction
+            authors = []
+            author_list = article_data.get("AuthorList", [])
+            for author in author_list:
+                last_name = author.get("LastName", "")
+                first_name = author.get("ForeName", "")
+                if last_name:
+                    authors.append(f"{last_name}, {first_name}")
+            
+            # Journal information
+            journal_info = article_data["Journal"]
+            journal_title = journal_info.get("Title", journal)
+            journal_abbrev = journal_info.get("ISOAbbreviation", "")
+            
+            # Issue information
+            journal_issue = journal_info.get("JournalIssue", {})
+            volume = journal_issue.get("Volume", "")
+            issue = journal_issue.get("Issue", "")
+            
+            # Enhanced publication date handling
+            pub_date = journal_issue.get("PubDate", {})
             pub_year = pub_date.get("Year", "Unknown Year")
             pub_month = pub_date.get("Month", "Unknown Month")
             pub_day = pub_date.get("Day", "")
-
-            doi = next(
-                (id_item for id_item in paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
-                 if id_item.attributes["IdType"] == "doi"),
-                None
-            )
+            
+            # Pages
+            pagination = article_data.get("Pagination", {})
+            pages = pagination.get("MedlinePgn", "")
+            
+            # Enhanced DOI handling
+            doi = None
+            article_ids = paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
+            for id_item in article_ids:
+                if id_item.attributes["IdType"] == "doi":
+                    doi = str(id_item)
+                    break
+            
+            # PMID
+            pmid_value = paper_info["PubmedArticle"][0]["MedlineCitation"]["PMID"]
 
             papers.append({
-                "Journal": journal,
+                "Journal": journal_title or journal_abbrev or journal,
                 "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-"),
-                "Title": title,
+                "Title": str(title),
+                "Authors": " and ".join(authors) if authors else "Unknown Author",
                 "Abstract": abstract,
-                "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
+                "Volume": volume,
+                "Issue": issue,
+                "Pages": pages,
+                "Year": str(pub_year),
+                "Month": str(pub_month),
+                "Day": str(pub_day),
+                "DOI": f"https://doi.org/{doi}" if doi else "No DOI available",
+                "PMID": str(pmid_value)
             })
 
             print(f"✅ Fetched details for article {index + 1}: {title}")
@@ -444,6 +489,80 @@ def fetch_pubmed_articles_by_date(journal, start_date=None, end_date=None, keywo
 
     print("😊 All articles have been fetched successfully.")
     return papers
+
+
+def parse_pubmed_article_enhanced(paper_info):
+    """Enhanced parser that extracts more detailed publication information"""
+    try:
+        article_data = paper_info["PubmedArticle"][0]["MedlineCitation"]["Article"]
+        
+        # Title
+        title = article_data["ArticleTitle"]
+        
+        # Authors
+        authors = []
+        author_list = article_data.get("AuthorList", [])
+        for author in author_list:
+            last_name = author.get("LastName", "")
+            first_name = author.get("ForeName", "")
+            if last_name:
+                authors.append(f"{last_name}, {first_name}")
+        
+        # Journal information
+        journal_info = article_data["Journal"]
+        journal_title = journal_info.get("Title", "")
+        journal_abbrev = journal_info.get("ISOAbbreviation", "")
+        
+        # Issue information
+        journal_issue = journal_info.get("JournalIssue", {})
+        volume = journal_issue.get("Volume", "")
+        issue = journal_issue.get("Issue", "")
+        
+        # Publication date
+        pub_date = journal_issue.get("PubDate", {})
+        pub_year = pub_date.get("Year", "")
+        pub_month = pub_date.get("Month", "")
+        pub_day = pub_date.get("Day", "")
+        
+        # Pages
+        pagination = article_data.get("Pagination", {})
+        pages = pagination.get("MedlinePgn", "")
+        
+        # Abstract
+        abstract = article_data.get("Abstract", {}).get("AbstractText", [""])[0]
+        
+        # DOI
+        doi = None
+        article_ids = paper_info["PubmedArticle"][0]["PubmedData"]["ArticleIdList"]
+        for id_item in article_ids:
+            if id_item.attributes["IdType"] == "doi":
+                doi = str(id_item)
+                break
+        
+        # PMID
+        pmid = paper_info["PubmedArticle"][0]["MedlineCitation"]["PMID"]
+        
+        return {
+            "Title": title,
+            "Authors": " and ".join(authors) if authors else "Unknown Author",
+            "Journal": journal_title or journal_abbrev,
+            "Volume": volume,
+            "Issue": issue,
+            "Pages": pages,
+            "Year": pub_year,
+            "Month": pub_month,
+            "Day": pub_day,
+            "Abstract": abstract,
+            "DOI": doi,
+            "PMID": str(pmid),
+            "Publication Date": f"{pub_year}-{pub_month}-{pub_day}".strip("-")
+        }
+        
+    except Exception as e:
+        print(f"Error parsing article: {e}")
+        return None
+
+
 
 ######################################################################
 # function to allow fetch preprints to use the same keyword logic as pubmed
@@ -1537,7 +1656,7 @@ class OptimizedPubMedFetcher:
                         article_data = paper_info["MedlineCitation"]["Article"]
                         title = article_data["ArticleTitle"]
                         
-                        # Handle abstract
+                        # Enhanced abstract handling
                         abstract_sections = article_data.get("Abstract", {}).get("AbstractText", [])
                         if abstract_sections:
                             if isinstance(abstract_sections[0], dict):
@@ -1547,7 +1666,30 @@ class OptimizedPubMedFetcher:
                         else:
                             abstract = "No abstract available"
                         
-                        # Handle publication date properly
+                        # Enhanced author extraction
+                        authors = []
+                        author_list = article_data.get("AuthorList", [])
+                        for author in author_list:
+                            last_name = author.get("LastName", "")
+                            first_name = author.get("ForeName", "")
+                            if last_name:
+                                authors.append(f"{last_name}, {first_name}")
+                        
+                        # Journal information
+                        journal_info = article_data["Journal"]
+                        journal_title = journal_info.get("Title", "")
+                        journal_abbrev = journal_info.get("ISOAbbreviation", "")
+                        
+                        # Issue information
+                        journal_issue = journal_info.get("JournalIssue", {})
+                        volume = journal_issue.get("Volume", "")
+                        issue = journal_issue.get("Issue", "")
+                        
+                        # Pages
+                        pagination = article_data.get("Pagination", {})
+                        pages = pagination.get("MedlinePgn", "")
+                        
+                        # Enhanced publication date handling (keep your existing logic)
                         pub_date_str = "Unknown Date"
                         
                         # Try multiple sources for publication date
@@ -1616,6 +1758,7 @@ class OptimizedPubMedFetcher:
                                 pass
                         
                         # Handle DOI
+                        # Enhanced DOI handling
                         doi = None
                         article_ids = paper_info.get("PubmedData", {}).get("ArticleIdList", [])
                         for id_item in article_ids:
@@ -1623,11 +1766,34 @@ class OptimizedPubMedFetcher:
                                 doi = str(id_item)
                                 break
                         
+                        # PMID
+                        pmid_value = paper_info["MedlineCitation"]["PMID"]
+                        
+                        # Extract year, month, day from your existing pub_date_str logic
+                        year = month = day = ""
+                        if pub_date_str != "Unknown Date":
+                            try:
+                                parts = pub_date_str.split('-')
+                                year = parts[0] if len(parts) > 0 else ""
+                                month = parts[1] if len(parts) > 1 else ""
+                                day = parts[2] if len(parts) > 2 else ""
+                            except:
+                                pass
+                        
                         papers.append({
                             "Publication Date": pub_date_str,
                             "Title": str(title),
+                            "Authors": " and ".join(authors) if authors else "Unknown Author",
                             "Abstract": abstract,
-                            "DOI": f"https://doi.org/{doi}" if doi else "No DOI available"
+                            "Journal": journal_title or journal_abbrev,
+                            "Volume": volume,
+                            "Issue": issue,
+                            "Pages": pages,
+                            "Year": year,
+                            "Month": month,
+                            "Day": day,
+                            "DOI": f"https://doi.org/{doi}" if doi else "No DOI available",
+                            "PMID": str(pmid_value)
                         })
                         
                         if progress_callback:
@@ -1839,38 +2005,100 @@ def test_api_configuration_with_rate_limiter():
 #####################################
 # generate BibTex format
 
+# def generate_bibtex_from_dataframe(df):
+#     """Generate BibTeX format from search results DataFrame"""
+#     bibtex_entries = []
+    
+#     for index, row in df.iterrows():
+#         # Clean up the title (remove markdown formatting)
+#         title = str(row.get('Title', 'Unknown Title')).replace('**', '')
+        
+#         # Clean up author field if it exists
+#         authors = row.get('Authors', 'Unknown Author')
+#         if pd.isna(authors) or authors == 'Unknown Author':
+#             authors = 'Unknown Author'
+        
+#         # Get journal name
+#         journal = str(row.get('Journal', 'Unknown Journal'))
+        
+#         # Get year from publication date
+#         pub_date = str(row.get('Publication Date', ''))
+#         year = 'Unknown Year'
+#         if pub_date and pub_date != 'nan':
+#             try:
+#                 year = pub_date.split('-')[0] if '-' in pub_date else pub_date[:4]
+#             except:
+#                 year = 'Unknown Year'
+        
+#         # Get DOI
+#         doi = str(row.get('DOI', ''))
+#         doi_clean = doi.replace('https://doi.org/', '') if doi and doi != 'nan' and doi != 'N/A' else ''
+        
+#         # Create entry key (first author + year + first word of title)
+#         first_word = title.split()[0] if title else 'Unknown'
+#         entry_key = f"{authors.split(',')[0].replace(' ', '')}_{year}_{first_word}".replace(' ', '').replace('.', '')
+        
+#         # Create BibTeX entry
+#         bibtex_entry = f"""@article{{{entry_key},
+#     title = {{{title}}},
+#     author = {{{authors}}},
+#     journal = {{{journal}}},
+#     year = {{{year}}}"""
+        
+#         if doi_clean:
+#             bibtex_entry += f",\n    doi = {{{doi_clean}}}"
+        
+#         if doi:
+#             bibtex_entry += f",\n    url = {{{doi}}}"
+            
+#         bibtex_entry += "\n}\n"
+#         bibtex_entries.append(bibtex_entry)
+    
+#     return "\n".join(bibtex_entries)
+
+
 def generate_bibtex_from_dataframe(df):
-    """Generate BibTeX format from search results DataFrame"""
+    """Generate comprehensive BibTeX format from search results DataFrame"""
     bibtex_entries = []
     
     for index, row in df.iterrows():
         # Clean up the title (remove markdown formatting)
         title = str(row.get('Title', 'Unknown Title')).replace('**', '')
         
-        # Clean up author field if it exists
+        # Authors
         authors = row.get('Authors', 'Unknown Author')
         if pd.isna(authors) or authors == 'Unknown Author':
             authors = 'Unknown Author'
         
-        # Get journal name
+        # Journal information
         journal = str(row.get('Journal', 'Unknown Journal'))
         
-        # Get year from publication date
-        pub_date = str(row.get('Publication Date', ''))
-        year = 'Unknown Year'
-        if pub_date and pub_date != 'nan':
-            try:
-                year = pub_date.split('-')[0] if '-' in pub_date else pub_date[:4]
-            except:
-                year = 'Unknown Year'
+        # Publication details
+        year = str(row.get('Year', ''))
+        if not year or year == 'nan':
+            pub_date = str(row.get('Publication Date', ''))
+            if pub_date and pub_date != 'nan':
+                try:
+                    year = pub_date.split('-')[0] if '-' in pub_date else pub_date[:4]
+                except:
+                    year = 'Unknown Year'
         
-        # Get DOI
+        volume = str(row.get('Volume', ''))
+        issue = str(row.get('Issue', ''))
+        pages = str(row.get('Pages', ''))
+        month = str(row.get('Month', ''))
+        
+        # DOI and PMID
         doi = str(row.get('DOI', ''))
-        doi_clean = doi.replace('https://doi.org/', '') if doi and doi != 'nan' and doi != 'N/A' else ''
+        pmid = str(row.get('PMID', ''))
         
-        # Create entry key (first author + year + first word of title)
+        # Abstract
+        abstract = str(row.get('Abstract', ''))
+        
+        # Create entry key
+        first_author = authors.split(' and ')[0].split(',')[0].replace(' ', '') if authors != 'Unknown Author' else 'UnknownAuthor'
         first_word = title.split()[0] if title else 'Unknown'
-        entry_key = f"{authors.split(',')[0].replace(' ', '')}_{year}_{first_word}".replace(' ', '').replace('.', '')
+        entry_key = f"{first_author}_{year}_{first_word}".replace(' ', '').replace('.', '')
         
         # Create BibTeX entry
         bibtex_entry = f"""@article{{{entry_key},
@@ -1879,11 +2107,35 @@ def generate_bibtex_from_dataframe(df):
     journal = {{{journal}}},
     year = {{{year}}}"""
         
-        if doi_clean:
+        # Add optional fields if available
+        if volume and volume != 'nan':
+            bibtex_entry += f",\n    volume = {{{volume}}}"
+        
+        if issue and issue != 'nan':
+            bibtex_entry += f",\n    number = {{{issue}}}"
+            
+        if pages and pages != 'nan':
+            bibtex_entry += f",\n    pages = {{{pages}}}"
+            
+        if month and month != 'nan':
+            bibtex_entry += f",\n    month = {{{month}}}"
+        
+        if doi and doi != 'nan' and doi != 'N/A':
+            doi_clean = doi.replace('https://doi.org/', '')
             bibtex_entry += f",\n    doi = {{{doi_clean}}}"
         
-        if doi:
+        if pmid and pmid != 'nan':
+            bibtex_entry += f",\n    pmid = {{{pmid}}}"
+        
+        if doi and doi != 'nan' and doi != 'N/A':
             bibtex_entry += f",\n    url = {{{doi}}}"
+        
+        # Add abstract if available and not too long
+        if abstract and abstract != 'nan' and len(abstract) > 10:
+            # Truncate very long abstracts
+            if len(abstract) > 500:
+                abstract = abstract[:500] + "..."
+            bibtex_entry += f",\n    abstract = {{{abstract}}}"
             
         bibtex_entry += "\n}\n"
         bibtex_entries.append(bibtex_entry)
