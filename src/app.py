@@ -51,6 +51,9 @@ if 'search_results' not in st.session_state:
     st.session_state.search_results = None
 if 'search_completed' not in st.session_state:
     st.session_state.search_completed = False
+if 'search_timestamp' not in st.session_state:
+    st.session_state.search_timestamp = None
+
 
 # Custom CSS for better styling  
 st.markdown("""  
@@ -571,63 +574,8 @@ else:
                             st.warning(error)  
                 
                 # Display results  
-                if all_articles:
-                    status_text.success(f"✅ Search completed! Found {len(df)} articles")
+                status_text.success(f"✅ Search completed! Found {len(df)} articles")
 
-                    if st.session_state.get('search_results') is not None and not st.session_state.search_results.empty:
-                        df = st.session_state.search_results
-    
-                        st.markdown("---")  
-                        st.markdown("### 📊 Search Results")  
-
-                        # Download buttons in two columns
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            # CSV download button - ensure unique key and prevent form submission
-                            if st.session_state.get('search_results') is not None:
-                                csv = st.session_state.search_results.to_csv(index=False)  
-                                st.download_button(  
-                                    label="📥 Download CSV",  
-                                    data=csv,  
-                                    file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                                    mime="text/csv",  
-                                    use_container_width=True,
-                                    key=f"csv_download_{datetime.now().strftime('%Y%m%d_%H%M%S')}"  # Dynamic key
-                                )
-
-                        with col2:
-                            # BibTeX download button - ensure unique key and prevent form submission  
-                            if st.session_state.get('search_results') is not None:
-                                bibtex_content = generate_bibtex_from_dataframe(st.session_state.search_results)
-                                st.download_button(
-                                    label="📚 Download BibTeX",
-                                    data=bibtex_content,
-                                    file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
-                                    mime="application/x-bibtex",
-                                    use_container_width=True,
-                                    key=f"bibtex_download_{datetime.now().strftime('%Y%m%d_%H%M%S')}"  # Dynamic key
-                                )
-
-                        st.dataframe(  
-                            st.session_state.search_results,  
-                            use_container_width=True,  
-                            hide_index=True,  
-                            column_config={  
-                                "Title": st.column_config.TextColumn("Title", width="large"),  
-                                "Abstract": st.column_config.TextColumn("Abstract", width="large"),  
-                                "DOI": st.column_config.LinkColumn("DOI", width="medium"),  
-                                "Publication Date": st.column_config.DateColumn("Publication Date", width="small"),  
-                                "Journal": st.column_config.TextColumn("Journal", width="small"),  
-                                "Source": st.column_config.TextColumn("Source", width="small")  
-                            }  
-                        )
-                        
-                    elif st.session_state.get('search_completed') and (st.session_state.search_results is None or st.session_state.search_results.empty):
-                        st.info("📭 No results found. Try refining your search criteria.")
-
-                else:
-                    status_text.warning("📭 No articles found matching your criteria.")
             else:  
                 # No results found  
                 status_text.warning("📭 No articles found matching your criteria.")  
@@ -654,6 +602,75 @@ else:
                 status_text.empty()  
             if 'progress_bar' in locals():  
                 progress_bar.empty()  
+
+
+    # ========================================
+    # PERSISTENT RESULTS DISPLAY SECTION  
+    # ========================================
+
+    # Display results if they exist in session state (regardless of whether search was just run)
+    if st.session_state.get('search_results') is not None and not st.session_state.search_results.empty:
+        df = st.session_state.search_results
+        
+        st.markdown("---")  
+        st.markdown("### 📊 Search Results")  
+        
+        # Show when the search was performed
+        if hasattr(st.session_state, 'search_timestamp'):
+            st.caption(f"Search performed: {st.session_state.search_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # Download buttons in two columns - ALWAYS AVAILABLE when results exist
+        col1, col2 = st.columns(2)
+
+        with col1:
+            csv = df.to_csv(index=False)  
+            st.download_button(  
+                label="📥 Download CSV",  
+                data=csv,  
+                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                mime="text/csv",  
+                use_container_width=True,
+                key="persistent_csv_download"
+            )
+
+        with col2:
+            bibtex_content = generate_bibtex_from_dataframe(df)
+            st.download_button(
+                label="📚 Download BibTeX",
+                data=bibtex_content,
+                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
+                mime="application/x-bibtex",
+                use_container_width=True,
+                key="persistent_bibtex_download"
+            )
+
+        # Display the dataframe
+        st.dataframe(  
+            df,  
+            use_container_width=True,  
+            hide_index=True,  
+            column_config={  
+                "Title": st.column_config.TextColumn("Title", width="large"),  
+                "Abstract": st.column_config.TextColumn("Abstract", width="large"),  
+                "DOI": st.column_config.LinkColumn("DOI", width="medium"),  
+                "Publication Date": st.column_config.DateColumn("Publication Date", width="small"),  
+                "Journal": st.column_config.TextColumn("Journal", width="small"),  
+                "Source": st.column_config.TextColumn("Source", width="small")  
+            }  
+        )
+
+        # Clear results button
+        col1, col2, col3 = st.columns(3)
+        with col2:
+            if st.button("🗑️ Clear Results", use_container_width=True):
+                st.session_state.search_results = None
+                st.session_state.search_completed = False
+                if hasattr(st.session_state, 'search_timestamp'):
+                    delattr(st.session_state, 'search_timestamp')
+                st.rerun()
+
+    elif st.session_state.get('search_completed'):
+        st.info("📭 No results found from your last search. Try refining your search criteria.")
 
     # Enhanced subscription confirmation with progress tracking  
     if subscribe_button:  
