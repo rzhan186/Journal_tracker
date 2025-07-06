@@ -542,6 +542,10 @@ else:
                 merged = merge_and_highlight_articles(all_articles, [], raw_keywords)  
                 df = pd.DataFrame(merged)  
                 
+                # Store results in session state to prevent loss on download
+                st.session_state.search_results = df
+                st.session_state.search_completed = True
+
                 # Fix DOI format to ensure proper links  
                 if 'DOI' in df.columns:  
                     df['DOI'] = df['DOI'].apply(lambda x:   
@@ -567,32 +571,33 @@ else:
                     st.markdown("### 📊 Search Results")  
 
                     # Download buttons in two columns
-                    col1, col2 = st.columns(2)
+                    if hasattr(st.session_state, 'search_results') and not st.session_state.search_results.empty:
+                        col1, col2 = st.columns(2)
 
-                    with col1:
-                        # CSV download button
-                        csv = df.to_csv(index=False)  
-                        st.download_button(  
-                            label="📥 Download CSV",  
-                            data=csv,  
-                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                            mime="text/csv",  
-                            use_container_width=True  
-                        )
+                        with col1:
+                            # CSV download button
+                            csv = df.to_csv(index=False)  
+                            st.download_button(  
+                                label="📥 Download CSV",  
+                                data=csv,  
+                                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                                mime="text/csv",  
+                                use_container_width=True  
+                            )
 
-                    with col2:
-                        # BibTeX download button
-                        bibtex_content = generate_bibtex_from_dataframe(df)
-                        st.download_button(
-                            label="📚 Download BibTeX",
-                            data=bibtex_content,
-                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
-                            mime="application/x-bibtex",
-                            use_container_width=True
-                        )
+                        with col2:
+                            # BibTeX download button
+                            bibtex_content = generate_bibtex_from_dataframe(df)
+                            st.download_button(
+                                label="📚 Download BibTeX",
+                                data=bibtex_content,
+                                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
+                                mime="application/x-bibtex",
+                                use_container_width=True
+                            )
 
                     st.dataframe(  
-                        df,  
+                        st.session_state.search_results,  
                         use_container_width=True,  
                         hide_index=True,  
                         column_config={  
@@ -603,7 +608,7 @@ else:
                             "Journal": st.column_config.TextColumn("Journal", width="small"),  
                             "Source": st.column_config.TextColumn("Source", width="small")  
                         }  
-                    )  
+                    )
 
                 else:
                     status_text.warning("📭 No articles found matching your criteria.")
