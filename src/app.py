@@ -566,7 +566,7 @@ else:
                     st.markdown("---")  
                     st.markdown("### 📊 Search Results")  
 
-                    # Just show download button
+                    # Download buttons in two columns
                     col1, col2 = st.columns(2)
 
                     with col1:
