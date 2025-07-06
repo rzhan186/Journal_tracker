@@ -422,8 +422,6 @@ else:
             optimized_fetcher = OptimizedPubMedFetcher(rate_limiter)  
             
             
-
-
             # ========================================  
             # ENHANCED SEARCH EXECUTION  
             # ========================================  
