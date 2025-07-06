@@ -18,6 +18,7 @@ from tracking_main import (
     compile_keyword_filter,
     format_boolean_keywords_for_pubmed,
     execute_subscription_search,
+    generate_bibtex_from_dataframe,
     OptimizedPubMedFetcher  # Add this import
 )
 from RateLimit import PubMedRateLimit
@@ -566,14 +567,29 @@ else:
                     st.markdown("### 📊 Search Results")  
 
                     # Just show download button
-                    csv = df.to_csv(index=False)  
-                    st.download_button(  
-                        label="📥 Download Results as CSV",  
-                        data=csv,  
-                        file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                        mime="text/csv",  
-                        use_container_width=True  
-                    )
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        # CSV download button
+                        csv = df.to_csv(index=False)  
+                        st.download_button(  
+                            label="📥 Download CSV",  
+                            data=csv,  
+                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                            mime="text/csv",  
+                            use_container_width=True  
+                        )
+
+                    with col2:
+                        # BibTeX download button
+                        bibtex_content = generate_bibtex_from_dataframe(df)
+                        st.download_button(
+                            label="📚 Download BibTeX",
+                            data=bibtex_content,
+                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
+                            mime="application/x-bibtex",
+                            use_container_width=True
+                        )
 
                     st.dataframe(  
                         df,  
