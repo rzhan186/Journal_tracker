@@ -545,6 +545,7 @@ else:
                 # Store results in session state to prevent loss on download
                 st.session_state.search_results = df
                 st.session_state.search_completed = True
+                st.session_state.search_timestamp = datetime.now()
 
                 # Fix DOI format to ensure proper links  
                 if 'DOI' in df.columns:  
@@ -574,28 +575,30 @@ else:
                     col1, col2 = st.columns(2)
 
                     with col1:
-                        # CSV download button
-                        csv = st.session_state.search_results.to_csv(index=False)  
-                        st.download_button(  
-                            label="📥 Download CSV",  
-                            data=csv,  
-                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
-                            mime="text/csv",  
-                            use_container_width=True,
-                            key="csv_download_unique"
-                        )
+                        # CSV download button - ensure unique key and prevent form submission
+                        if st.session_state.get('search_results') is not None:
+                            csv = st.session_state.search_results.to_csv(index=False)  
+                            st.download_button(  
+                                label="📥 Download CSV",  
+                                data=csv,  
+                                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
+                                mime="text/csv",  
+                                use_container_width=True,
+                                key=f"csv_download_{datetime.now().strftime('%Y%m%d_%H%M%S')}"  # Dynamic key
+                            )
 
                     with col2:
-                        # BibTeX download button
-                        bibtex_content = generate_bibtex_from_dataframe(st.session_state.search_results)
-                        st.download_button(
-                            label="📚 Download BibTeX",
-                            data=bibtex_content,
-                            file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
-                            mime="application/x-bibtex",
-                            use_container_width=True,
-                            key="bibtex_download_unique"
-                        )
+                        # BibTeX download button - ensure unique key and prevent form submission  
+                        if st.session_state.get('search_results') is not None:
+                            bibtex_content = generate_bibtex_from_dataframe(st.session_state.search_results)
+                            st.download_button(
+                                label="📚 Download BibTeX",
+                                data=bibtex_content,
+                                file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
+                                mime="application/x-bibtex",
+                                use_container_width=True,
+                                key=f"bibtex_download_{datetime.now().strftime('%Y%m%d_%H%M%S')}"  # Dynamic key
+                            )
 
                     st.dataframe(  
                         st.session_state.search_results,  
