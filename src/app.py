@@ -582,7 +582,7 @@ else:
                             file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",  
                             mime="text/csv",  
                             use_container_width=True,
-                            key="csv_download_btn"  # Add unique key
+                            key="csv_download_unique"
                         )
 
                     with col2:
@@ -594,7 +594,7 @@ else:
                             file_name=f"pubmed_search_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bib",
                             mime="application/x-bibtex",
                             use_container_width=True,
-                            key="bibtex_download_btn"  # Add unique key
+                            key="bibtex_download_unique"
                         )
 
                     st.dataframe(  
