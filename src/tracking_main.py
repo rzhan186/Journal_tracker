@@ -1835,6 +1835,57 @@ def test_api_configuration_with_rate_limiter():
         print(f"❌ API test failed: {e}")
         return False
 
-# Call this function when the module loads
-# if __name__ == "__main__":
-#     test_api_configuration_with_rate_limiter()
+
+#####################################
+# generate BibTex format
+
+def generate_bibtex_from_dataframe(df):
+    """Generate BibTeX format from search results DataFrame"""
+    bibtex_entries = []
+    
+    for index, row in df.iterrows():
+        # Clean up the title (remove markdown formatting)
+        title = str(row.get('Title', 'Unknown Title')).replace('**', '')
+        
+        # Clean up author field if it exists
+        authors = row.get('Authors', 'Unknown Author')
+        if pd.isna(authors) or authors == 'Unknown Author':
+            authors = 'Unknown Author'
+        
+        # Get journal name
+        journal = str(row.get('Journal', 'Unknown Journal'))
+        
+        # Get year from publication date
+        pub_date = str(row.get('Publication Date', ''))
+        year = 'Unknown Year'
+        if pub_date and pub_date != 'nan':
+            try:
+                year = pub_date.split('-')[0] if '-' in pub_date else pub_date[:4]
+            except:
+                year = 'Unknown Year'
+        
+        # Get DOI
+        doi = str(row.get('DOI', ''))
+        doi_clean = doi.replace('https://doi.org/', '') if doi and doi != 'nan' and doi != 'N/A' else ''
+        
+        # Create entry key (first author + year + first word of title)
+        first_word = title.split()[0] if title else 'Unknown'
+        entry_key = f"{authors.split(',')[0].replace(' ', '')}_{year}_{first_word}".replace(' ', '').replace('.', '')
+        
+        # Create BibTeX entry
+        bibtex_entry = f"""@article{{{entry_key},
+    title = {{{title}}},
+    author = {{{authors}}},
+    journal = {{{journal}}},
+    year = {{{year}}}"""
+        
+        if doi_clean:
+            bibtex_entry += f",\n    doi = {{{doi_clean}}}"
+        
+        if doi:
+            bibtex_entry += f",\n    url = {{{doi}}}"
+            
+        bibtex_entry += "\n}\n"
+        bibtex_entries.append(bibtex_entry)
+    
+    return "\n".join(bibtex_entries)
