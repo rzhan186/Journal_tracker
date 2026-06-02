@@ -1,7 +1,8 @@
 .env
 .venv/
 __pycache__/
-.streamlit
+.streamlit/
+.DS_Store
 
 improvements.txt
 src/testing.ipynb

@@ -23,4 +23,4 @@ Launch the hosted web app — no installation required:
 
 ## Sample Output
 
-See the [`sample output/`](sample%20output/) folder for example CSV exports.
+See the [`sample_output/`](sample_output/) folder for example CSV exports.
