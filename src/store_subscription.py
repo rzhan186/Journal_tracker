@@ -1,10 +1,11 @@
-# store_subscription.py
+import os
+import logging
+import traceback
+from datetime import datetime
 
 from supabase import create_client
-import os
 from dotenv import load_dotenv
-import logging
-import pandas as pd
+from itsdangerous import URLSafeSerializer
 
 # Load environment variables
 load_dotenv()
@@ -73,66 +74,42 @@ def get_user_subscriptions_by_email(email):
         return []
 
 def verify_unsubscribe_token(token):
-    """Verify unsubscribe token and return subscription data - NO EXPIRATION"""
+    """Verify an unsubscribe token and return the associated subscription data."""
     try:
-        from itsdangerous import URLSafeSerializer
-        import os
-        import logging
-        from supabase import create_client
-        
-        # Initialize supabase client
-        SUPABASE_URL = os.getenv("SUPABASE_URL")
-        SUPABASE_KEY = os.getenv("SUPABASE_KEY") 
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        
-        # Get the secret key
         secret_key = os.getenv("UNSUBSCRIBE_SECRET")
         if not secret_key:
             logging.error("UNSUBSCRIBE_SECRET not found in environment variables")
             return None
-        
-        # Create serializer WITHOUT TimestampSigner (no expiration)
+
         serializer = URLSafeSerializer(secret_key)
-        
-        # Decode the token to get subscription_id
         subscription_id = serializer.loads(token)
         logging.info(f"Decoded subscription ID: {subscription_id}")
-        
-        # Get subscription from database
+
         response = supabase.table("subscriptions").select("*").eq("id", subscription_id).execute()
-        
-        if response.data and len(response.data) > 0:
-            subscription_data = response.data[0]  # Get the first (and should be only) result
+
+        if response.data:
+            subscription_data = response.data[0]
             logging.info(f"Found subscription for email: {subscription_data.get('email', 'Unknown')}")
             return subscription_data
         else:
             logging.warning(f"No subscription found for ID: {subscription_id}")
             return None
-            
+
     except Exception as e:
         logging.error(f"Error verifying unsubscribe token: {e}")
-        import traceback
         logging.error(traceback.format_exc())
         return None
 
 def generate_unsubscribe_token(subscription_id):
-    """Generate a permanent unsubscribe token for a subscription"""
+    """Generate a permanent unsubscribe token for a subscription."""
     try:
-        from itsdangerous import URLSafeSerializer
-        import os
-        import logging
-        
         secret_key = os.getenv("UNSUBSCRIBE_SECRET")
         if not secret_key:
             raise ValueError("UNSUBSCRIBE_SECRET not found")
-        
-        # Create serializer WITHOUT TimestampSigner (no expiration)
-        serializer = URLSafeSerializer(secret_key) 
-        
-        # Generate token
-        token = serializer.dumps(subscription_id)
-        return token
-        
+
+        serializer = URLSafeSerializer(secret_key)
+        return serializer.dumps(subscription_id)
+
     except Exception as e:
         logging.error(f"Error generating unsubscribe token: {e}")
         return None
@@ -147,10 +124,8 @@ def get_active_subscriptions():
         return []
 
 def update_subscription_last_sent(subscription_id):
-    """Update the last_sent timestamp for a subscription"""
+    """Update the last_sent timestamp for a subscription."""
     try:
-        from datetime import datetime
-        
         response = supabase.table("subscriptions").update({
             "last_sent": datetime.now().isoformat()
         }).eq("id", subscription_id).execute()

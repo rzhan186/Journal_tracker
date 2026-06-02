@@ -1,15 +1,12 @@
-# scheduler.py
 import os
 import logging
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import pandas as pd
-import io
-import time
 
-# Your existing imports
+from itsdangerous import URLSafeTimedSerializer
 from store_subscription import supabase
-from email_dispatcher import send_email, generate_download_token
+from email_dispatcher import send_email, generate_download_token, cleanup_expired_csv_files
 from tracking_main import (
     fetch_pubmed_articles_by_date,
     fetch_preprints,
@@ -148,13 +145,10 @@ def execute_search_for_subscription(subscription):
         return pd.DataFrame()
 
 def send_subscription_email(subscription, results_df):
-    """Send subscription update email with improved formatting and error handling"""
+    """Send subscription update email."""
     try:
         email = subscription['email']
-        
-        # Generate unsubscribe link
-        from itsdangerous import URLSafeTimedSerializer
-        
+
         UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET")
         serializer = URLSafeTimedSerializer(UNSUBSCRIBE_SECRET, salt="unsubscribe")
         
@@ -173,16 +167,13 @@ def send_subscription_email(subscription, results_df):
         
         # ✅ IMPROVED: Always update last_sent, even if no results
         if not results_df.empty:
-            # Generate CSV and download link
             csv_bytes = results_df.to_csv(index=False).encode("utf-8")
             download_token = generate_download_token(csv_bytes, email)
             download_link = f"{BASE_URL}?token={download_token}&action=download"
             result_count = len(results_df)
-            
-            # ✅ IMPROVED: Better subject line
+
             subject = f"📚 Journal Tracker: {result_count} New Article{'s' if result_count != 1 else ''} Found"
-            
-            # ✅ IMPROVED: Professional HTML-formatted email
+
             email_body = f"""Hi {email},
 
 Your {frequency} PubMed update is ready!
@@ -201,7 +192,6 @@ Download your results (expires in 24 hours):
 – PubMed Tracker Team
             """
 
-            # ✅ IMPROVED: Better error handling for email sending
             try:
                 send_email(email, subject, email_body)
                 logging.info(f"✅ Subscription email sent to {email} ({result_count} articles)")
@@ -209,11 +199,10 @@ Download your results (expires in 24 hours):
             except Exception as email_error:
                 logging.error(f"❌ Failed to send email to {email}: {email_error}")
                 return False
-                
+
         else:
-            # ✅ IMPROVED: Still update last_sent even if no results to prevent constant checking
-            logging.info(f"📭 No results for {email}, updating last_sent anyway to prevent constant checking")
-            return True  # Changed from False to True
+            logging.info(f"📭 No results for {email}, skipping email.")
+            return True
         
     except Exception as e:
         logging.error(f"❌ Error in send_subscription_email for {subscription.get('email', 'unknown')}: {e}")
@@ -232,69 +221,13 @@ def update_subscription_last_sent(subscription_id):
         logging.error(f"Error updating last_sent: {e}")
 
 def run_maintenance():
-    """Run periodic maintenance tasks"""
+    """Run periodic maintenance tasks."""
     try:
-        from email_dispatcher import cleanup_expired_csv_files
         logging.info("🧹 Running maintenance tasks...")
         cleanup_expired_csv_files()
         logging.info("✅ Maintenance completed")
     except Exception as e:
         logging.error(f"❌ Maintenance failed: {e}")
-
-# def process_due_subscriptions(dry_run=False):
-#     """Main function to process all due subscriptions"""
-#     try:
-#         mode = "🧪 DRY RUN" if dry_run else "📬 LIVE MODE"
-#         logging.info(f"Starting subscription processing ({mode})...")
-        
-#         response = supabase.table("subscriptions").select("*").eq("active", True).execute()
-        
-#         total_subscriptions = len(response.data)
-#         processed = 0
-#         sent = 0
-        
-#         logging.info(f"Found {total_subscriptions} active subscriptions")
-        
-#         for subscription in response.data:
-#             try:
-#                 if is_subscription_due(subscription):
-#                     email = subscription['email']
-#                     frequency = subscription.get('frequency', 'weekly')
-                    
-#                     if dry_run:
-#                         logging.info(f"🧪 DRY RUN: Would send {frequency} update to {email}")
-#                         processed += 1
-#                         continue  # Skip actual processing
-                    
-#                     # ✅ Only execute real processing in live mode
-#                     logging.info(f"📬 Processing subscription for {email}")
-                    
-#                     # Execute search
-#                     results = execute_search_for_subscription(subscription)
-                    
-#                     # Send email if results found
-#                     if send_subscription_email(subscription, results):
-#                         sent += 1
-                        
-#                     # Update last_sent timestamp
-#                     update_subscription_last_sent(subscription['id'])
-#                     processed += 1
-#                 else:
-#                     if not dry_run:  # Only log in live mode to reduce noise
-#                         logging.info(f"Subscription for {subscription['email']} not due yet")
-                        
-#             except Exception as e:
-#                 logging.error(f"Error processing subscription {subscription['id']}: {e}")
-#                 continue
-        
-#         if dry_run:
-#             logging.info(f"🧪 DRY RUN COMPLETE: Would process {processed} subscriptions")
-#         else:
-#             logging.info(f"📬 LIVE PROCESSING COMPLETE: {processed} processed, {sent} emails sent")
-        
-#     except Exception as e:
-#         logging.error(f"Error in process_due_subscriptions: {e}")
-
 
 
 def process_due_subscriptions(dry_run=False):

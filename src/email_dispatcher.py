@@ -1,14 +1,13 @@
-# email_dispatcher.py
-
 from supabase import create_client
 from dotenv import load_dotenv
 import os
 import logging
+import uuid
+from datetime import datetime, timedelta
+
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import streamlit as st
-import uuid
-from datetime import datetime, timedelta
 
 # Load secrets
 load_dotenv()
@@ -17,7 +16,6 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# ✅ NEW: Brevo email configuration
 def get_email_config():
     """Get email configuration from environment or Streamlit secrets"""
     try:
@@ -47,9 +45,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def send_email(to_email, subject, body, sender_email=None, sender_name=None, api_key=None):
-    """
-    UPDATED: Send email using Brevo API with new domain
-    """
+    """Send email using the Brevo transactional email API."""
     try:
         if not to_email:
             raise ValueError("Recipient email cannot be None.")
@@ -94,11 +90,6 @@ def send_email(to_email, subject, body, sender_email=None, sender_name=None, api
         logging.error(f"❌ Failed to send email to {to_email}: {error_msg}")
         raise Exception(error_msg)
 
-######################################################################
-# CSV download functions
-
-import base64
-from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer
 
 DOWNLOAD_SECRET = os.getenv("DOWNLOAD_SECRET")
