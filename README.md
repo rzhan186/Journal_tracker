@@ -1,22 +1,26 @@
-# 🧪 PubMed Journal Tracker
+# PubMed Journal Tracker
 
-An easy-to-use PubMed search tool for journal articles. This app lets you:
+A PubMed search tool for journal articles. Search by journal name, filter by date range, apply Boolean keyword logic, and download article metadata as a CSV or BibTeX file.
 
-- Search by journal name
-- Filter by publication date range
-- Apply advanced Boolean keyword logic
-- Download article metadata as a CSV file
+![logo](logo.png)
 
-## 🚀 Run Online (Streamlit Web App)
+## Use the App
 
-Click the link below to launch: [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io)
+Launch the hosted web app — no installation required:
 
-> (https://journaltracker.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://journaltracker.streamlit.app/)
 
-## 🖥 Run Locally
+> **https://journaltracker.streamlit.app/**
 
-1. **Clone the repo:**
+## Features
 
-```bash
-git clone https://github.com/rzhan186/journal-tracker.git
-cd journal-tracker
+- Search PubMed by journal name
+- Filter articles by publication date range
+- Apply advanced Boolean keyword logic (AND / OR / NOT)
+- Merge results and highlight keyword matches
+- Download article metadata as **CSV** or **BibTeX**
+- Subscribe to scheduled email updates for a journal
+
+## Sample Output
+
+See the [`sample output/`](sample%20output/) folder for example CSV exports.
