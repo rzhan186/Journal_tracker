@@ -1,16 +1,10 @@
 # PubMed Journal Tracker
 
-A PubMed search tool for journal articles. Search by journal name, filter by date range, apply Boolean keyword logic, and download article metadata as a CSV or BibTeX file.
-
-![logo](logo.png)
-
-## Use the App
-
-Launch the hosted web app — no installation required:
+A lightweight PubMed search tool for tracking journal articles. Search by journal name, filter by date range, apply Boolean keyword logic, and export article metadata as CSV or BibTeX.
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://journaltracker.streamlit.app/)
 
-> **https://journaltracker.streamlit.app/**
+![logo](logo.png)
 
 ## Features
 
