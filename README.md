@@ -2,7 +2,7 @@
 
 A lightweight PubMed search tool for tracking journal articles. Search by journal name, filter by date range, apply Boolean keyword logic, and export article metadata as CSV or BibTeX.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://journaltracker.streamlit.app/)
+[![Open in Streamlit](https://img.shields.io/badge/Streamlit-Open%20App-FF4B4B?logo=streamlit&logoColor=white)](https://journaltracker.streamlit.app/)
 
 ![logo](logo.png)
 
