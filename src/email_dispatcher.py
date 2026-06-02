@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import os
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
@@ -156,7 +156,7 @@ def get_csv_from_token(token):
         # Check expiration
         if record.get('csv_expires_at'):
             expires_at = datetime.fromisoformat(record['csv_expires_at'])
-            if datetime.now() > expires_at:
+            if datetime.now(timezone.utc) > expires_at:
                 # **CLEANUP: Remove expired file from storage**
                 try:
                     supabase.storage.from_('csv-files').remove([record['csv_file_path']])
