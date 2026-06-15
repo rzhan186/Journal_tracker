@@ -23,6 +23,7 @@ from tracking_main import (
 from RateLimit import PubMedRateLimit
 from store_subscription import store_user_subscription, generate_unsubscribe_token
 from email_dispatcher import send_email, generate_download_token, get_next_update_timeframe
+from digest import render_weekly_digest
 import os
 
 # Configuration
@@ -621,6 +622,9 @@ else:
 
     elif st.session_state.get('search_completed'):
         st.info("📭 No results found from your last search. Try refining your search criteria.")
+
+    else:
+        render_weekly_digest()
 
     # Enhanced subscription confirmation with progress tracking  
     if subscribe_button:  
