@@ -99,7 +99,7 @@ def _summarize_abstract(title: str, abstract: str) -> str:
 
     except Exception as e:
         print(f"⚠️ Summarization failed: {e}")
-        return "- Summary unavailable."
+        return f"- Summary unavailable ({str(e)})."
 
 
 @st.cache_data(ttl=604800, show_spinner=False)
