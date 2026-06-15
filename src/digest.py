@@ -86,7 +86,7 @@ def _summarize_abstract(title: str, abstract: str) -> str:
             return "- Summary unavailable (API key not configured)."
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash")
         prompt = (
             "Summarize this scientific paper in exactly 3 short bullet points for a general audience with no scientific background. "
             "Each bullet should be one plain English sentence. "
